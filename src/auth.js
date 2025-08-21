@@ -7,6 +7,8 @@ const axios = require('axios');
 const { writeConfig, mergeConfig } = require('./config');
 
 const MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
+const REDIRECT_PORT = 63265;
+const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
 
 function buildAuthority(tenantId, authorityHost) {
   const host = authorityHost || 'https://login.microsoftonline.com';
@@ -38,21 +40,15 @@ function openBrowser(url) {
   }
 }
 
-async function loginWithBrowser(flags) {
-  const cfg = mergeConfig(flags);
-  if (!cfg.clientId) throw new Error('Browser login requires --client-id or JAYZ_CLIENT_ID in env or config.json');
-  if (!cfg.tenantId) throw new Error('Browser login requires --tenant-id or JAYZ_TENANT_ID in env or config.json');
-
-  const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
-
-  // start a localhost server for redirect
+async function startLocalServerForCode() {
   const server = http.createServer();
   let resolveCode, rejectCode;
   const waitForCode = new Promise((resolve, reject) => { resolveCode = resolve; rejectCode = reject; });
 
   server.on('request', (req, res) => {
     try {
-      const url = new URL(req.url, 'http://localhost');
+      // Always resolve relative to localhost + fixed port
+      const url = new URL(req.url, `http://localhost:${REDIRECT_PORT}`);
       if (url.pathname !== '/callback') {
         res.statusCode = 404;
         res.end('Not found');
@@ -79,26 +75,35 @@ async function loginWithBrowser(flags) {
   });
 
   await new Promise((resolve, reject) => {
-    try {
-      server.listen(63265) => {
-      if (err) reject(err); else resolve();
-    });
-    } catch (e) {
+    server.once('error', (e) => {
       if (e && e.code === 'EADDRINUSE') {
-        reject(new Error('Port 63265 is in use. Close the app using it or set a different port and rebuild.'));
+        reject(new Error(`Port ${REDIRECT_PORT} is in use. Close the app using it and retry.`));
       } else {
         reject(e);
       }
-    }
+    });
+    // Bind without hostname to support IPv4/IPv6; redirect uses localhost
+    server.listen(REDIRECT_PORT, () => resolve());
   });
-  const port = server.address().port;
-  const redirectUri = `http://localhost:63265/callback`;
+
+  return waitForCode;
+}
+
+async function loginWithBrowser(flags) {
+  const cfg = mergeConfig(flags);
+  if (!cfg.clientId) throw new Error('Browser login requires --client-id or JAYZ_CLIENT_ID in env or config.json');
+  if (!cfg.tenantId) throw new Error('Browser login requires --tenant-id or JAYZ_TENANT_ID in env or config.json');
+
+  const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
+
+  // Start local server waiting for code
+  const waitForCode = await startLocalServerForCode();
 
   const pkce = genPkce();
   const authParams = new URLSearchParams({
     client_id: cfg.clientId,
     response_type: 'code',
-    redirect_uri: redirectUri,
+    redirect_uri: REDIRECT_URI,
     response_mode: 'query',
     scope: `${MANAGEMENT_SCOPE} offline_access openid profile`,
     code_challenge: pkce.challenge,
@@ -118,7 +123,7 @@ async function loginWithBrowser(flags) {
     scope: `${MANAGEMENT_SCOPE} offline_access`,
     grant_type: 'authorization_code',
     code: authCode,
-    redirect_uri: redirectUri,
+    redirect_uri: REDIRECT_URI,
     code_verifier: pkce.verifier,
   });
 
@@ -178,7 +183,7 @@ async function refreshWithRefreshToken(cfg) {
   return updated.accessToken;
 }
 
-// Optional alt modes (require local msal-node if you use them)
+// Optional alt modes for completeness
 async function loginWithDeviceCode(flags) {
   const msal = require('msal-node');
   const { LogLevel, PublicClientApplication } = msal;
