@@ -183,3 +183,45 @@ jayz endpoint list --name <command>   # directly show --help for that endpoint
 jayz endpoint update "https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/create-deployment?view=rest-appservice-2024-11-01"
 # Overwrites the generated file in src/endpoints/ with fresh metadata from Learn
 ```
+
+
+**Note:** Wrap the Learn URL in quotes when using `jayz endpoint add|update`, e.g.  
+`jayz endpoint add "https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/create-deployment?view=rest-appservice-2024-11-01"`
+
+Generated commands are loaded automatically the next time you invoke `jayz`. After `endpoint add|update`, just run the new command, e.g.:  
+`jayz appservice_web_apps_create_deployment --help`
+
+
+### User-specific endpoints location
+
+Generated endpoints are saved to your user config directory:
+
+- **Linux/macOS:** `~/.config/jayz/endpoints/`
+- **Windows:** `%HOMEPATH%\.config\jayz\endpoints\`
+
+They’re auto-loaded on every `jayz` run. You can commit them if you want, but they’re designed to be **per-user**.
+To remove one, delete the file and run any `jayz` command again.
+
+
+### Remove an endpoint
+```bash
+jayz endpoint remove <commandName>     # prompts for confirmation
+jayz endpoint remove <commandName> -y  # no prompt
+```
+Removes the user copy from `~/.config/jayz/endpoints/`. Built-ins (if any) live in the repo’s `src/endpoints/`.
+
+
+### Searching endpoints (list/remove)
+Both `list` and `remove` support filtering and selection:
+
+```bash
+# simple grep-style filter
+jayz endpoint list --grep web_apps
+
+# interactive: you can also type a filter when prompted, then pick by number
+jayz endpoint list
+
+# remove with search (pick interactively)
+jayz endpoint remove           # will ask for a filter (optional) then show a menu
+jayz endpoint remove --grep web_apps -y   # non-interactive; deletes the first/only match
+```

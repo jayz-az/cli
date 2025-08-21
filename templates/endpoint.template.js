@@ -1,7 +1,6 @@
-const { getAccessToken } = require('../auth');
-const { mergeConfig } = require('../config');
-const { azRequest } = require('../http');
-const { printOutput } = require('../format');
+const path = require('path');
+const RUNTIME = require(path.join(process.env.JAYZ_CLI_DIR || __dirname, '..', '..', 'src', 'runtime'));
+const { getAccessToken, mergeConfig, azRequest, printOutput } = RUNTIME;
 
 module.exports = {
   command: '__CMD_NAME__',
