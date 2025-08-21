@@ -1,0 +1,19 @@
+{
+  "name": "jayz",
+  "version": "0.1.3",
+  "description": "A tiny Azure REST CLI: add endpoints straight from Microsoft Learn pages.",
+  "bin": {
+    "jayz": "./bin/jayz"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bin/jayz",
+    "dev": "node bin/jayz --help"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "cheerio": "^1.0.0",
+    "yargs": "^17.7.2",
+    "yaml": "^2.4.5"
+  }
+}
