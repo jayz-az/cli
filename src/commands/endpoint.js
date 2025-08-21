@@ -180,7 +180,8 @@ module.exports = {
           const name = synthesizeName(argv.learnUrl, meta);
           const filename = name + '.js';
           const requiredParams = extractPathParams(meta.url);
-          const defaultedParams = apiVersion ? { 'api-version': apiVersion } : {};
+          const hasApiVer = /[?&]api-version=/.test(meta.url);
+          const defaultedParams = (!hasApiVer && apiVersion) ? { 'api-version': apiVersion } : {};
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
           ensureRuntimeShim(userEndpointsDir);
@@ -211,7 +212,8 @@ module.exports = {
           const name = synthesizeName(argv.learnUrl, meta);
           const filename = name + '.js';
           const requiredParams = extractPathParams(meta.url);
-          const defaultedParams = apiVersion ? { 'api-version': apiVersion } : {};
+          const hasApiVer = /[?&]api-version=/.test(meta.url);
+          const defaultedParams = (!hasApiVer && apiVersion) ? { 'api-version': apiVersion } : {};
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
           ensureRuntimeShim(userEndpointsDir);

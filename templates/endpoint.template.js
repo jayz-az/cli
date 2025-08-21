@@ -61,9 +61,17 @@ module.exports = {
         }
       });
 
+      // Extract any query already present in the raw URL to avoid duplicates (e.g., api-version)
+      const urlObj = new URL(url);
+      const queryFromUrl = {};
+      for (const [k, v] of urlObj.searchParams.entries()) queryFromUrl[k] = v;
+      urlObj.search = '';
+      url = urlObj.toString();
+
       const defaultQuery = __DEFAULT_QUERY__;
       const extra = argv.params ? JSON.parse(argv.params) : {};
-      const query = Object.assign({}, defaultQuery, extra);
+      // Merge order: defaults < query-from-URL < user-extra
+      const query = Object.assign({}, defaultQuery, queryFromUrl, extra);
 
       const body = argv.body ? JSON.parse(argv.body) : undefined;
 
