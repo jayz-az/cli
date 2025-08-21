@@ -1,6 +1,6 @@
 {
   "name": "jayz",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A tiny Azure REST CLI: add endpoints straight from Microsoft Learn pages.",
   "bin": {
     "jayz": "./bin/jayz"

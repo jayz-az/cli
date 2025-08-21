@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Compiled / build output
+dist/
+build/
+out/
+.cache/
+.tmp/
+tmp/
+temp/
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Env / Secrets (if any used locally)
+.env
+.env.*
+.env.local
+
+# Package archives
+*.tgz
+
+# Next/Vercel/etc (just in case)
+.next/
+.vercel/

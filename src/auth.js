@@ -52,7 +52,7 @@ async function loginWithBrowser(flags) {
 
   server.on('request', (req, res) => {
     try {
-      const url = new URL(req.url, 'http://127.0.0.1');
+      const url = new URL(req.url, 'http://localhost');
       if (url.pathname !== '/callback') {
         res.statusCode = 404;
         res.end('Not found');
@@ -79,12 +79,20 @@ async function loginWithBrowser(flags) {
   });
 
   await new Promise((resolve, reject) => {
-    server.listen(0, '127.0.0.1', (err) => {
+    try {
+      server.listen(63265) => {
       if (err) reject(err); else resolve();
     });
+    } catch (e) {
+      if (e && e.code === 'EADDRINUSE') {
+        reject(new Error('Port 63265 is in use. Close the app using it or set a different port and rebuild.'));
+      } else {
+        reject(e);
+      }
+    }
   });
   const port = server.address().port;
-  const redirectUri = `http://127.0.0.1:${port}/callback`;
+  const redirectUri = `http://localhost:63265/callback`;
 
   const pkce = genPkce();
   const authParams = new URLSearchParams({
@@ -170,7 +178,7 @@ async function refreshWithRefreshToken(cfg) {
   return updated.accessToken;
 }
 
-// Optional alt modes for completeness
+// Optional alt modes (require local msal-node if you use them)
 async function loginWithDeviceCode(flags) {
   const msal = require('msal-node');
   const { LogLevel, PublicClientApplication } = msal;
