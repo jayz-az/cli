@@ -7,10 +7,8 @@ yargs(hideBin(process.argv))
   .usage('$0 <cmd> [args]')
   .command(require('./commands/login'))
   .command(require('./commands/call'))
-  .command(require('./commands/endpoint-add'))
-  .command(require('./commands/endpoint-list'))
-  .command(require('./commands/endpoint-update'))
   .command(require('./commands/init'))
+  .command(require('./commands/endpoint'))  // parent command: endpoint list|add|update
   .middleware(() => {
     registerGeneratedEndpoints(yargs);
   })
