@@ -225,3 +225,15 @@ jayz endpoint list
 jayz endpoint remove           # will ask for a filter (optional) then show a menu
 jayz endpoint remove --grep web_apps -y   # non-interactive; deletes the first/only match
 ```
+
+
+### Repair old endpoints
+
+If you generated endpoints before the per-user change or saw
+`Cannot find module '<...>/src/runtime'`, run:
+
+```bash
+jayz endpoint repair
+```
+
+This updates user endpoints to use a local runtime shim and fixes the import path.

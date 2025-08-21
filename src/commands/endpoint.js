@@ -9,6 +9,14 @@ const repoEndpointsDir = path.join(__dirname, '..', 'endpoints');
 const userEndpointsDir = path.join(require('os').homedir(), '.config', 'jayz', 'endpoints');
 const templatePath = path.join(__dirname, '..', '..', 'templates', 'endpoint.template.js');
 
+function ensureRuntimeShim(dir) {
+  const shim = `module.exports = (function(){\n  const path = require('path');\n  const candidates = [];\n  if (process.env.JAYZ_CLI_DIR) {\n    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'src', 'runtime'));\n    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));\n  }\n  try { const bin = process.argv[1]; if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime')); } catch (_) {}\n  const tried = [];\n  for (const c of candidates) { try { return require(c); } catch (e) { tried.push(c); } }\n  throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));\n})();`;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const shimPath = path.join(dir, '_runtime.js');
+  if (!fs.existsSync(shimPath)) fs.writeFileSync(shimPath, shim, 'utf8');
+}
+
+
 function collectEndpoints() {
   const dirs = [repoEndpointsDir, userEndpointsDir];
   const out = [];
@@ -175,6 +183,7 @@ module.exports = {
           const defaultedParams = apiVersion ? { 'api-version': apiVersion } : {};
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
+          ensureRuntimeShim(userEndpointsDir);
           const outPath = path.join(userEndpointsDir, filename);
           const template = fs.readFileSync(templatePath, 'utf8');
           const rendered = template
@@ -205,6 +214,7 @@ module.exports = {
           const defaultedParams = apiVersion ? { 'api-version': apiVersion } : {};
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
+          ensureRuntimeShim(userEndpointsDir);
           const outPath = path.join(userEndpointsDir, filename);
           const template = fs.readFileSync(templatePath, 'utf8');
           const rendered = template
@@ -220,6 +230,34 @@ module.exports = {
           console.log('  jayz', name, '--help');
         }
       })
+
+.command({
+  command: 'repair',
+  desc: 'Fix older user endpoints to use the new runtime shim (no Learn URL needed).',
+  builder: (y2) => y2,
+  handler: async () => {
+    if (!fs.existsSync(userEndpointsDir)) { console.log('No user endpoints dir at', userEndpointsDir); return; }
+    const files = fs.readdirSync(userEndpointsDir).filter(f => f.endsWith('.js') && f !== '_runtime.js');
+    if (files.length === 0) { console.log('No user endpoints to repair.'); return; }
+    ensureRuntimeShim(userEndpointsDir);
+    let changed = 0;
+    for (const f of files) {
+      const full = path.join(userEndpointsDir, f);
+      try {
+        let src = fs.readFileSync(full, 'utf8');
+        if (src.includes("process.env.JAYZ_CLI_DIR") || src.includes("__dirname, '..', '..', 'src', 'runtime'")) {
+          src = src.replace(/const\s+RUNTIME\s*=\s*require\([^)]*\);/m, "const RUNTIME = require(path.join(__dirname, '_runtime'));");
+          fs.writeFileSync(full, src, 'utf8');
+          changed++;
+          console.log('Repaired:', f);
+        }
+      } catch (e) {
+        console.log('Skipped (read error):', f, e.message);
+      }
+    }
+    console.log('Repair complete. Files updated:', changed, '/', files.length);
+  }
+})
       .command({
         command: 'remove [name]',
         desc: 'Remove a user-generated endpoint. Supports --grep and interactive picking.',

@@ -1,6 +1,25 @@
 const path = require('path');
-const RUNTIME = require(path.join(process.env.JAYZ_CLI_DIR || __dirname, '..', '..', 'src', 'runtime'));
-const { getAccessToken, mergeConfig, azRequest, printOutput } = RUNTIME;
+function resolveRuntime() {
+  const candidates = [];
+  if (process.env.JAYZ_CLI_DIR) {
+    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'src', 'runtime'));
+    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));
+  }
+  try {
+    const bin = process.argv[1];
+    if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime'));
+  } catch (_) {}
+  // prefer local shim in user endpoints dir
+  candidates.push(path.join(__dirname, '_runtime'));
+  // fallback relative (repo install)
+  candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime'));
+  const tried = [];
+  for (const c of candidates) {
+    try { return require(c); } catch (e) { tried.push(c); }
+  }
+  throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));
+}
+const { getAccessToken, mergeConfig, azRequest, printOutput } = resolveRuntime();
 
 module.exports = {
   command: '__CMD_NAME__',
