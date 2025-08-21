@@ -67,7 +67,7 @@ npm i msal-node
 ## Generic call
 
 ```bash
-./bin/jayz call --method GET --url "https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.Resources/subscriptions" --params '{"api-version":"2020-01-01"}' --output table
+./bin/jayz call --method GET --url "https://management.azure.com/subscriptions" --params '{"api-version":"2020-01-01"}' --output table
 ```
 
 ## Generate endpoint from Learn
@@ -142,3 +142,44 @@ JAYZ_CLIENT_SECRET=<secret> ./bin/jayz login
   - If not interactive, it picks the first and tells you which one it chose.
 
 You can disable this behavior with `--no-pick-subscription`.
+
+
+### Correct subscription examples
+
+List all subscriptions:
+```bash
+jayz call --method GET \
+  --url "https://management.azure.com/subscriptions" \
+  --params '{"api-version":"2020-01-01"}'
+```
+
+Get one subscription (uses saved `{subscriptionId}`):
+```bash
+jayz call --method GET \
+  --url "https://management.azure.com/subscriptions/{subscriptionId}" \
+  --params '{"api-version":"2020-01-01"}'
+```
+
+List resource groups:
+```bash
+jayz call --method GET \
+  --url "https://management.azure.com/subscriptions/{subscriptionId}/resourcegroups" \
+  --params '{"api-version":"2021-04-01"}' \
+  --output table
+```
+
+
+## Endpoint utilities
+
+### List endpoints and view help
+```bash
+jayz endpoint list            # prints all generated endpoint commands
+jayz endpoint list --name <command>   # directly show --help for that endpoint
+# Interactive (TTY): jayz endpoint list  -> pick one to show its help
+```
+
+### Update an endpoint from a Learn URL
+```bash
+jayz endpoint update "https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/create-deployment?view=rest-appservice-2024-11-01"
+# Overwrites the generated file in src/endpoints/ with fresh metadata from Learn
+```
