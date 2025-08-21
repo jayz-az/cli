@@ -97,7 +97,7 @@ async function loginWithBrowser(flags) {
   const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
 
   // Start local server waiting for code
-  const waitForCode = await startLocalServerForCode();
+  const waitForCode = startLocalServerForCode();
 
   const pkce = genPkce();
   const authParams = new URLSearchParams({
@@ -126,6 +126,9 @@ async function loginWithBrowser(flags) {
     redirect_uri: REDIRECT_URI,
     code_verifier: pkce.verifier,
   });
+  if (cfg.clientSecret) {
+    tokenParams.append('client_secret', cfg.clientSecret);
+  }
 
   const tokenUrl = `${authority}/oauth2/v2.0/token`;
   const tokenResp = await axios.post(tokenUrl, tokenParams.toString(), {
@@ -134,7 +137,12 @@ async function loginWithBrowser(flags) {
   });
 
   if (tokenResp.status < 200 || tokenResp.status >= 300) {
-    throw new Error('Token exchange failed: ' + JSON.stringify(tokenResp.data));
+    const e = tokenResp.data || {};
+if (e.error === 'invalid_client') {
+  throw new Error("Token exchange failed: invalid_client. Your app is configured as a confidential client. Either set JAYZ_CLIENT_SECRET (or --client-secret) and add a Web redirect 'http://localhost:63265/callback' to the app registration, or switch to --mode secret.");
+} else {
+  throw new Error('Token exchange failed: ' + JSON.stringify(tokenResp.data));
+}
   }
 
   const body = tokenResp.data;

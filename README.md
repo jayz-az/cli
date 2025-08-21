@@ -111,3 +111,21 @@ Notes:
 
 If you get a port-in-use error, close the conflicting process and try again.
 
+
+
+### Browser OAuth (confidential app)
+
+If your app registration must remain a **confidential** client (no public client flows), you can still use the browser login by providing a client secret. Configure your app with:
+
+- **Single tenant** (OK)
+- **Platform**: **Web**
+- **Redirect URI**: `http://localhost:63265/callback`
+- **Client secret**: create one and store it as `JAYZ_CLIENT_SECRET` or pass `--client-secret`
+
+Then run:
+
+```bash
+JAYZ_CLIENT_SECRET=<secret> ./bin/jayz login
+# or
+./bin/jayz login --client-secret <secret>
+```
