@@ -129,3 +129,16 @@ JAYZ_CLIENT_SECRET=<secret> ./bin/jayz login
 # or
 ./bin/jayz login --client-secret <secret>
 ```
+
+
+### Auto-pick subscription after login
+
+`jayz login` can set your default subscription automatically:
+
+- If you pass `--subscription-id`, jayz saves that ID.
+- Otherwise, if `--pick-subscription` (default), jayz fetches your subscriptions and:
+  - If there’s only one, it saves it.
+  - If there are many and you’re in a TTY, it shows a menu so you can choose.
+  - If not interactive, it picks the first and tells you which one it chose.
+
+You can disable this behavior with `--no-pick-subscription`.
