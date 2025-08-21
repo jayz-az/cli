@@ -170,6 +170,9 @@ async function refreshWithRefreshToken(cfg) {
     grant_type: 'refresh_token',
     refresh_token: cfg.refreshToken,
   });
+  if (cfg.clientSecret) {
+    tokenParams.append('client_secret', cfg.clientSecret);
+  }
 
   const tokenUrl = `${authority}/oauth2/v2.0/token`;
   const tokenResp = await axios.post(tokenUrl, tokenParams.toString(), {
