@@ -1,0 +1,96 @@
+const axios = require('axios');
+const readline = require('readline');
+const { getAccessToken } = require('../auth');
+const { updateActiveAccount, mergeConfig } = require('../config');
+const { printOutput } = require('../format');
+
+async function fetchSubscriptions(token) {
+  const resp = await axios.get('https://management.azure.com/subscriptions', {
+    params: { 'api-version': '2020-01-01' },
+    headers: { Authorization: 'Bearer ' + token },
+    validateStatus: () => true,
+  });
+  if (resp.status >= 200 && resp.status < 300) {
+    const items = Array.isArray(resp.data?.value) ? resp.data.value : [];
+    return items.map(i => ({
+      subscriptionId: i.subscriptionId || i.subscriptionID || i.id?.split('/')[2],
+      displayName: i.displayName || i.name,
+      state: i.state,
+      id: i.subscriptionId || i.subscriptionID || i.id,
+      name: i.displayName || i.name,
+    })).filter(x => x.subscriptionId);
+  }
+  throw new Error('Failed to list subscriptions: HTTP ' + resp.status + ' ' + JSON.stringify(resp.data));
+}
+
+async function promptSelect(list) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  console.log('\nSubscriptions:');
+  list.forEach((s, idx) => {
+    console.log(`  [${idx+1}] ${s.displayName || s.name || s.subscriptionId} (${s.subscriptionId})${s.state ? ' - ' + s.state : ''}`);
+  });
+  const ans = await new Promise((resolve) => rl.question('Pick one (Enter to cancel): ', (a) => { rl.close(); resolve(a); }));
+  const n = parseInt(ans, 10);
+  if (!ans || isNaN(n) || n < 1 || n > list.length) return null;
+  return list[n-1];
+}
+
+module.exports = {
+  command: 'subscription',
+  desc: 'Manage the active Azure subscription (list/use/show).',
+  builder: (y) => {
+    return y
+      .command({
+        command: 'list',
+        desc: 'List subscriptions visible to the active account; optionally pick a default.',
+        builder: (y2) => y2
+          .option('set-default', { type: 'boolean', default: false, describe: 'Prompt to select and set the default subscription.' })
+          .option('output', { type: 'string', choices: ['json', 'table'], default: 'table' }),
+        handler: async (argv) => {
+          try {
+            const token = await getAccessToken(argv);
+            const subs = await fetchSubscriptions(token);
+            if (argv.output === 'table') {
+              printOutput({ value: subs }, 'table');
+            } else {
+              console.log(JSON.stringify({ value: subs }, null, 2));
+            }
+            if (argv.setDefault && process.stdout.isTTY && subs.length > 0) {
+              const pick = await promptSelect(subs);
+              if (!pick) { console.log('Cancelled.'); return; }
+              updateActiveAccount({ subscriptionId: pick.subscriptionId });
+              console.log('Default subscription set to:', pick.subscriptionId);
+            }
+          } catch (err) {
+            console.error('subscription list failed:', err.message);
+            process.exit(1);
+          }
+        }
+      })
+      .command({
+        command: 'use <subscriptionId>',
+        desc: 'Set the default (active) subscription for the current account.',
+        builder: (y2) => y2.positional('subscriptionId', { type: 'string' }),
+        handler: async (argv) => {
+          try {
+            updateActiveAccount({ subscriptionId: argv.subscriptionId });
+            console.log('Default subscription set to:', argv.subscriptionId);
+          } catch (err) {
+            console.error('subscription use failed:', err.message);
+            process.exit(1);
+          }
+        }
+      })
+      .command({
+        command: 'show',
+        desc: 'Show the currently configured subscription id (from the active account).',
+        builder: (y2) => y2,
+        handler: async (argv) => {
+          const cfg = mergeConfig(argv);
+          console.log(JSON.stringify({ subscriptionId: cfg.subscriptionId || null }, null, 2));
+        }
+      })
+      .demandCommand(1, 'subscription requires a subcommand (list|use|show)');
+  },
+  handler: () => {}
+};

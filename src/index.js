@@ -25,6 +25,7 @@ cli
   .command(safeLoad('./commands/init'))
   .command(safeLoad('./commands/account'))
   .command(safeLoad('./commands/endpoint'))
+  .command(safeLoad('./commands/subscription'))
   .command(safeLoad('./commands/doctor'))
   .demandCommand(1, 'Please supply a command.')
   .strict()
