@@ -1,3 +1,4 @@
+
 const axios = require('axios');
 const readline = require('readline');
 const { getAccessToken } = require('../auth');
@@ -11,9 +12,10 @@ async function fetchSubscriptions(token) {
     validateStatus: () => true,
   });
   if (resp.status >= 200 && resp.status < 300) {
-    const items = Array.isArray(resp.data?.value) ? resp.data.value : [];
+    const data = resp.data && resp.data.value ? resp.data.value : [];
+    const items = Array.isArray(data) ? data : [];
     return items.map(i => ({
-      subscriptionId: i.subscriptionId || i.subscriptionID || i.id?.split('/')[2],
+      subscriptionId: i.subscriptionId || i.subscriptionID || (i.id && i.id.split('/')[2]),
       displayName: i.displayName || i.name,
       state: i.state,
       id: i.subscriptionId || i.subscriptionID || i.id,
@@ -25,9 +27,11 @@ async function fetchSubscriptions(token) {
 
 async function promptSelect(list) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  console.log('\nSubscriptions:');
+  console.log('\\nSubscriptions:');
   list.forEach((s, idx) => {
-    console.log(`  [${idx+1}] ${s.displayName || s.name || s.subscriptionId} (${s.subscriptionId})${s.state ? ' - ' + s.state : ''}`);
+    const disp = s.displayName || s.name || s.subscriptionId;
+    const state = s.state ? (' - ' + s.state) : '';
+    console.log(`  [${idx+1}] ${disp} (${s.subscriptionId})${state}`);
   });
   const ans = await new Promise((resolve) => rl.question('Pick one (Enter to cancel): ', (a) => { rl.close(); resolve(a); }));
   const n = parseInt(ans, 10);
@@ -79,34 +83,33 @@ module.exports = {
           }
         }
       })
-.command({
-  command: 'use [subscriptionId]',
-  desc: 'Set the default (active) subscription. If omitted, shows a picker.',
-  builder: (y2) => y2
-    .positional('subscriptionId', { type: 'string' })
-    .option('output', { type: 'string', choices: ['json','table'], default: 'table' }),
-  .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' })
-                handler: async (argv) => {
-    const { mergeConfig } = require('../config');
-    try {
-      let sid = argv.subscriptionId;
-      if (!sid) {
-        const token = await getAccessToken(argv);
-        let subs = await fetchSubscriptions(token);
-                      subs = filterSubs(subs, argv.grep);
-        if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
-        const pick = await promptSelect(subs);
-        if (!pick) { console.log('Cancelled.'); return; }
-        sid = pick.subscriptionId;
-      }
-      updateActiveAccount({ subscriptionId: sid });
-      console.log('Default subscription set to:', sid);
-    } catch (err) {
-      console.error('subscription use failed:', err.message);
-      process.exit(1);
-    }
-  }
-})
+      .command({
+        command: 'use [subscriptionId]',
+        desc: 'Set the default (active) subscription. If omitted, shows a picker.',
+        builder: (y2) => y2
+          .positional('subscriptionId', { type: 'string' })
+          .option('output', { type: 'string', choices: ['json','table'], default: 'table' })
+          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
+        handler: async (argv) => {
+          try {
+            let sid = argv.subscriptionId;
+            if (!sid) {
+              const token = await getAccessToken(argv);
+              let subs = await fetchSubscriptions(token);
+              subs = filterSubs(subs, argv.grep);
+              if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
+              const pick = await promptSelect(subs);
+              if (!pick) { console.log('Cancelled.'); return; }
+              sid = pick.subscriptionId;
+            }
+            updateActiveAccount({ subscriptionId: sid });
+            console.log('Default subscription set to:', sid);
+          } catch (err) {
+            console.error('subscription use failed:', err.message);
+            process.exit(1);
+          }
+        }
+      })
       .command({
         command: 'show',
         desc: 'Show the currently configured subscription id (from the active account).',
@@ -117,26 +120,27 @@ module.exports = {
         }
       })
       .command({
-  command: 'switch',
-  desc: 'Interactive subscription picker; sets the default subscription.',
-  builder: (y2) => y2.option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
-  handler: async (argv) => {
-    try {
-      const token = await getAccessToken(argv);
-      let subs = await fetchSubscriptions(token);
-                      subs = filterSubs(subs, argv.grep);
-      if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
-      const pick = await promptSelect(subs);
-      if (!pick) { console.log('Cancelled.'); return; }
-      updateActiveAccount({ subscriptionId: pick.subscriptionId });
-      console.log('Default subscription set to:', pick.subscriptionId);
-    } catch (err) {
-      console.error('subscription switch failed:', err.message);
-      process.exit(1);
-    }
-  }
-})
-.demandCommand(1, 'subscription requires a subcommand (list|use|show|switch)');
+        command: 'switch',
+        desc: 'Interactive subscription picker; sets the default subscription.',
+        builder: (y2) => y2
+          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
+        handler: async (argv) => {
+          try {
+            const token = await getAccessToken(argv);
+            let subs = await fetchSubscriptions(token);
+            subs = filterSubs(subs, argv.grep);
+            if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
+            const pick = await promptSelect(subs);
+            if (!pick) { console.log('Cancelled.'); return; }
+            updateActiveAccount({ subscriptionId: pick.subscriptionId });
+            console.log('Default subscription set to:', pick.subscriptionId);
+          } catch (err) {
+            console.error('subscription switch failed:', err.message);
+            process.exit(1);
+          }
+        }
+      })
+      .demandCommand(1, 'subscription requires a subcommand (list|use|show|switch)');
   },
   handler: () => {}
 };

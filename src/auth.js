@@ -176,7 +176,7 @@ async function loginWithDeviceCode(flags) {
     subscriptionId: cfg.subscriptionId,
     tokenType: 'device_code',
     accessToken: result.accessToken || null,
-    expiresOn: result.expiresOn?.toISOString?.() || null,
+    expiresOn: (result.expiresOn && typeof result.expiresOn.toISOString === 'function' ? result.expiresOn.toISOString() : null),
     authorityHost: cfg.authorityHost,
   };
 
@@ -207,8 +207,8 @@ async function loginWithClientSecret(flags) {
     tenantId: cfg.tenantId,
     subscriptionId: cfg.subscriptionId,
     tokenType: 'client_secret',
-    accessToken: result?.accessToken || null,
-    expiresOn: result?.expiresOn ? new Date(result.expiresOn * 1000).toISOString() : null,
+    accessToken: (result && result.accessToken) || null,
+    expiresOn: (result && result.expiresOn ? new Date(result.expiresOn * 1000).toISOString() : null),
     authorityHost: cfg.authorityHost,
   };
   writeConfig(Object.assign(mergeConfig({}), toSave));

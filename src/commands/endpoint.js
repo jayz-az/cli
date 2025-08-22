@@ -113,7 +113,7 @@ function scrapeHttpRequest(html, learnUrl) {
 
 function extractApiVersionFromUrl(learnUrl) {
   const q = learnUrl.split('?')[1] || ''; const params = new URLSearchParams(q);
-  return params.get('view')?.split('rest-').pop()?.replace(/-.+$/, '') || null;
+  return params.get('view').split('rest-').pop().replace(/-.+$/, '') || null;
 }
 
 function synthesizeName(learnUrl, meta) {

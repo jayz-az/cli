@@ -10,9 +10,9 @@ async function fetchSubscriptions(token) {
     validateStatus: () => true,
   });
   if (resp.status >= 200 && resp.status < 300) {
-    const items = Array.isArray(resp.data?.value) ? resp.data.value : [];
+    const items = Array.isArray((resp.data && resp.data.value)) ? resp.data.value : [];
     return items.map(i => ({
-      subscriptionId: i.subscriptionId || i.subscriptionID || i.id?.split('/')[2],
+      subscriptionId: i.subscriptionId || i.subscriptionID || (i.id && i.id.split('/')[2]),
       displayName: i.displayName || i.name,
       state: i.state,
     })).filter(x => x.subscriptionId);
