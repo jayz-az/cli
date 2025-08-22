@@ -13,6 +13,7 @@ cli
   .command(require('./commands/login'))
   .command(require('./commands/call'))
   .command(require('./commands/init'))
+  .command(require('./commands/account'))
   .command(require('./commands/endpoint'))  // endpoint list|add|update|remove|repair
   .demandCommand(1, 'Please supply a command.')
   .strict()

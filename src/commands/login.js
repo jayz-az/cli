@@ -1,7 +1,7 @@
 const axios = require('axios');
 const readline = require('readline');
 const { loginWithBrowser, loginWithDeviceCode, loginWithClientSecret, getAccessToken } = require('../auth');
-const { mergeConfig, writeConfig, readConfig } = require('../config');
+const { mergeConfig, writeConfig, readConfig, saveAccount, setDefaultAccount, getActiveAccountName } = require('../config');
 
 async function fetchSubscriptions(token) {
   const resp = await axios.get('https://management.azure.com/subscriptions', {
@@ -47,6 +47,8 @@ module.exports = {
       .option('tenant-id', { type: 'string' })
       .option('subscription-id', { type: 'string' })
       .option('authority-host', { type: 'string' })
+      .option('account', { type: 'string', describe: 'Name for this login profile (e.g., spn-prod, user-dev). Defaults to auto-generated.' })
+      .option('no-default', { type: 'boolean', default: false, describe: 'Do not make this account the default after login.' })
       .option('pick-subscription', { type: 'boolean', default: true }),
   handler: async (argv) => {
     try {
@@ -62,11 +64,19 @@ module.exports = {
         console.log('Logged in via browser OAuth.');
       }
 
+      // Save as named account and maybe set default
+      const suffix = (saved.clientId||'').slice(0,6);
+      const prefix = saved.tokenType === 'client_secret' ? 'spn' : 'user';
+      const name = argv.account || `${prefix}-${(saved.tenantId||'').slice(0,8)}-${suffix}`;
+      saveAccount(name, saved);
+      if (!argv.noDefault) { setDefaultAccount(name); }
+      console.log('Saved account:', name, (!argv.noDefault ? '(set as default)' : ''));
+
       if (argv.subscriptionId) {
         const cfg = mergeConfig({});
-        cfg.subscriptionId = argv.subscriptionId;
-        writeConfig(cfg);
-        console.log('Saved default subscription:', cfg.subscriptionId);
+        const updated = Object.assign({}, cfg, { subscriptionId: argv.subscriptionId });
+        writeConfig(updated);
+        console.log('Saved default subscription:', argv.subscriptionId);
         return;
       }
 

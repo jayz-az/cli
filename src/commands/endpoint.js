@@ -20,8 +20,8 @@ function ensureRuntimeShim(dir) {
     candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));
   }
   try { const bin = process.argv[1]; if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime')); } catch (_) {}
-  candidates.push(path.join(__dirname, '_runtime')); // self
-  candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime')); // repo fallback
+  candidates.push(path.join(__dirname, '_runtime'));
+  candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime'));
   const tried = [];
   for (const c of candidates) { try { return require(c); } catch (e) { tried.push(c); } }
   throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));
@@ -78,9 +78,7 @@ async function promptInput(question, defVal='') {
 async function promptSelect(list) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('\nAvailable endpoints:');
-  list.forEach((e, idx) => {
-    console.log(`  [${idx+1}] ${e.command}  ${e.desc ? '- ' + e.desc : ''}`);
-  });
+  list.forEach((e, idx) => { console.log(`  [${idx+1}] ${e.command}  ${e.desc ? '- ' + e.desc : ''}`); });
   const ans = await new Promise((resolve) => rl.question('Pick one (Enter to cancel): ', (a) => { rl.close(); resolve(a); }));
   const n = parseInt(ans, 10);
   if (!ans || isNaN(n) || n < 1 || n > list.length) return null;
@@ -322,7 +320,6 @@ module.exports = {
             try {
               let src = fs.readFileSync(full, 'utf8');
               if (!src.includes("require(path.join(__dirname, '_runtime'))")) {
-                // naive replace of previous strategies
                 src = src.replace(/const\s+RUNTIME\s*=\s*require\([^)]*\);/m, "const RUNTIME = require(path.join(__dirname, '_runtime'));");
                 fs.writeFileSync(full, src, 'utf8');
                 changed++;

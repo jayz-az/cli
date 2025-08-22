@@ -3,7 +3,7 @@ const { URLSearchParams } = require('url');
 const crypto = require('crypto');
 const child_process = require('child_process');
 const axios = require('axios');
-const { writeConfig, mergeConfig } = require('./config');
+const { writeConfig, mergeConfig, updateActiveAccount } = require('./config');
 
 const MANAGEMENT_SCOPE = 'https://management.azure.com/.default';
 const REDIRECT_PORT = 63265;
@@ -48,37 +48,20 @@ async function startLocalServerForCode() {
     try {
       const url = new URL(req.url, `http://localhost:${REDIRECT_PORT}`);
       if (url.pathname !== '/callback') {
-        res.statusCode = 404;
-        res.end('Not found');
-        return;
+        res.statusCode = 404; res.end('Not found'); return;
       }
       const code = url.searchParams.get('code');
       const err = url.searchParams.get('error_description') || url.searchParams.get('error');
-      if (err) {
-        res.statusCode = 400;
-        res.end('Login failed. You may close this window.');
-        rejectCode(new Error(err));
-        server.close();
-        return;
-      }
-      res.statusCode = 200;
-      res.end('Login complete. You may close this window.');
-      resolveCode(code);
-      server.close();
-    } catch (e) {
-      try { res.statusCode = 500; res.end('Error'); } catch (_) {}
-      rejectCode(e);
-      server.close();
-    }
+      if (err) { res.statusCode = 400; res.end('Login failed. You may close this window.'); rejectCode(new Error(err)); server.close(); return; }
+      res.statusCode = 200; res.end('Login complete. You may close this window.');
+      resolveCode(code); server.close();
+    } catch (e) { try { res.statusCode = 500; res.end('Error'); } catch (_) {} rejectCode(e); server.close(); }
   });
 
   await new Promise((resolve, reject) => {
     server.once('error', (e) => {
-      if (e && e.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${REDIRECT_PORT} is in use. Close the app using it and retry.`));
-      } else {
-        reject(e);
-      }
+      if (e && e.code === 'EADDRINUSE') reject(new Error(`Port ${REDIRECT_PORT} is in use. Close the app using it and retry.`));
+      else reject(e);
     });
     server.listen(REDIRECT_PORT, () => resolve());
   });
@@ -92,10 +75,9 @@ async function loginWithBrowser(flags) {
   if (!cfg.tenantId) throw new Error('Browser login requires --tenant-id or JAYZ_TENANT_ID');
 
   const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
-
   const waitForCode = startLocalServerForCode();
-
   const pkce = genPkce();
+
   const authParams = new URLSearchParams({
     client_id: cfg.clientId,
     response_type: 'code',
@@ -110,7 +92,6 @@ async function loginWithBrowser(flags) {
   const authUrl = `${authority}/oauth2/v2.0/authorize?${authParams.toString()}`;
   console.log('Opening browser for login...');
   openBrowser(authUrl);
-
   const authCode = await waitForCode;
 
   const tokenParams = new URLSearchParams({
@@ -181,7 +162,7 @@ async function refreshWithRefreshToken(cfg, scopeOverride) {
     refreshToken: body.refresh_token || cfg.refreshToken,
     expiresOn: body.expires_in ? new Date(Date.now() + body.expires_in * 1000).toISOString() : null,
   });
-  writeConfig(updated);
+  try { updateActiveAccount(updated); } catch (_) { writeConfig(updated); }
   return updated.accessToken;
 }
 
@@ -189,7 +170,6 @@ async function loginWithDeviceCode(flags) {
   const msal = require('msal-node');
   const { LogLevel, PublicClientApplication } = msal;
   const cfg = mergeConfig(flags);
-
   if (!cfg.clientId || !cfg.tenantId) throw new Error('Device code flow requires clientId and tenantId');
 
   const pca = new PublicClientApplication({
@@ -265,7 +245,7 @@ async function getAccessToken(flags) {
     return result.accessToken;
   }
 
-  if (cfg.tokenType === 'browser_oauth' && cfg.refreshToken) {
+  if (cfg.refreshToken) {
     return await refreshWithRefreshToken(cfg);
   }
 
@@ -273,8 +253,6 @@ async function getAccessToken(flags) {
     const res = await loginWithDeviceCode(cfg);
     return res.accessToken;
   }
-
-  if (cfg.refreshToken) return await refreshWithRefreshToken(cfg);
 
   throw new Error('Unsupported token state. Run `jayz login`.');
 }
