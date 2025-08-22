@@ -23,23 +23,33 @@ function writeConfig(obj) {
   } catch (_) {}
 }
 
+function definedOnly(obj) {
+  const out = {};
+  if (!obj) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined && v !== null && v !== '') out[k] = v;
+  }
+  return out;
+}
+
 function mergeConfig(flags) {
   const file = readConfig();
-  const env = {
+
+  const env = definedOnly({
     clientId: process.env.JAYZ_CLIENT_ID,
     clientSecret: process.env.JAYZ_CLIENT_SECRET,
     tenantId: process.env.JAYZ_TENANT_ID,
     subscriptionId: process.env.JAYZ_SUBSCRIPTION_ID,
     authorityHost: process.env.JAYZ_AUTHORITY_HOST,
-  };
+  });
 
-  const cli = {
+  const cli = definedOnly({
     clientId: flags && (flags.clientId || flags['client-id']),
     clientSecret: flags && (flags.clientSecret || flags['client-secret']),
     tenantId: flags && (flags.tenantId || flags['tenant-id']),
     subscriptionId: flags && (flags.subscriptionId || flags['subscription-id']),
     authorityHost: flags && (flags.authorityHost || flags['authority-host']),
-  };
+  });
 
   return Object.assign({}, file, env, cli);
 }
