@@ -27,7 +27,7 @@ async function pickSubscriptionInteractively(list) {
     list.forEach((s, idx) => {
       console.log(`  [${idx+1}] ${s.displayName || s.subscriptionId} (${s.subscriptionId})${s.state ? ' - ' + s.state : ''}`);
     });
-    rl.question('Enter a number (or press Enter to keep current / skip): ', (ans) => {
+    rl.question('Enter a number (or press Enter to skip): ', (ans) => {
       rl.close();
       const n = parseInt(ans, 10);
       if (!ans || isNaN(n) || n < 1 || n > list.length) return resolve(null);
@@ -38,28 +38,16 @@ async function pickSubscriptionInteractively(list) {
 
 module.exports = {
   command: 'login',
-  desc: 'Login with browser OAuth by default; optionally pick and save a default subscription.',
+  desc: 'Login with browser (default), device code, or client secret; optionally pick a default subscription.',
   builder: (y) =>
     y
-      .option('mode', {
-        type: 'string',
-        choices: ['browser', 'device', 'secret'],
-        default: 'browser',
-        describe: 'Auth mode. Default: browser',
-      })
-      .option('client-id', { type: 'string', describe: 'AAD app client id (required for browser/device).' })
-      .option('client-secret', { type: 'string', describe: 'AAD app client secret (secret mode or confidential browser).' })
-      .option('tenant-id', { type: 'string', describe: 'Tenant id (GUID).' })
-      .option('subscription-id', { type: 'string', describe: 'Set and save default subscription id.' })
-      .option('authority-host', {
-        type: 'string',
-        describe: 'Custom authority host (default login.microsoftonline.com).',
-      })
-      .option('pick-subscription', {
-        type: 'boolean',
-        default: true,
-        describe: 'After login, auto-pick (or prompt) a default subscription if none is set.',
-      }),
+      .option('mode', { type: 'string', choices: ['browser', 'device', 'secret'], default: 'browser' })
+      .option('client-id', { type: 'string' })
+      .option('client-secret', { type: 'string' })
+      .option('tenant-id', { type: 'string' })
+      .option('subscription-id', { type: 'string' })
+      .option('authority-host', { type: 'string' })
+      .option('pick-subscription', { type: 'boolean', default: true }),
   handler: async (argv) => {
     try {
       let saved;
@@ -74,7 +62,6 @@ module.exports = {
         console.log('Logged in via browser OAuth.');
       }
 
-      // If user explicitly provided a subscription-id, save it and exit.
       if (argv.subscriptionId) {
         const cfg = mergeConfig({});
         cfg.subscriptionId = argv.subscriptionId;
@@ -89,7 +76,6 @@ module.exports = {
         return;
       }
 
-      // Attempt to discover subscriptions and save one if not already set
       let cfg = mergeConfig({});
       if (!cfg.subscriptionId) {
         const token = await getAccessToken({});
@@ -104,9 +90,7 @@ module.exports = {
         }
         if (!chosen) {
           chosen = subs[0].subscriptionId;
-          if (subs.length > 1) {
-            console.log(`No selection made; using first subscription: ${chosen}`);
-          }
+          if (subs.length > 1) console.log(`No selection made; using first subscription: ${chosen}`);
         }
         cfg = mergeConfig({ subscriptionId: chosen });
         writeConfig(cfg);

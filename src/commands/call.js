@@ -1,19 +1,16 @@
-const { getAccessToken } = require('../auth');
-const { mergeConfig } = require('../config');
+const { getAccessToken, mergeConfig } = require('../auth');
 const { azRequest } = require('../http');
 const { printOutput } = require('../format');
 
 module.exports = {
   command: 'call',
-  desc: 'Generic Azure REST call.',
-  builder: (y) =>
-    y
-      .option('method', { type: 'string', demandOption: true, describe: 'HTTP method (GET, PUT, POST, etc.)' })
-      .option('url', { type: 'string', demandOption: true, describe: 'Full URL starting with https://management.azure.com' })
-      .option('params', { type: 'string', describe: 'Query params as JSON (merged with api-version if present).' })
-      .option('body', { type: 'string', describe: 'Request body as JSON.' })
-      .option('subscription-id', { type: 'string', describe: 'Fallback subscription id for {subscriptionId} in URL.' })
-      .option('output', { type: 'string', choices: ['json', 'table'], default: 'json', describe: 'Output format.' }),
+  desc: 'Generic HTTP call against ARM/Graph with jayz auth.',
+  builder: (y) => y
+    .option('method', { type: 'string', choices: ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'], demandOption: true })
+    .option('url', { type: 'string', demandOption: true })
+    .option('params', { type: 'string', describe: 'JSON of query params' })
+    .option('body', { type: 'string', describe: 'JSON body' })
+    .option('output', { type: 'string', choices: ['json','table'], default: 'json' }),
   handler: async (argv) => {
     try {
       const token = await getAccessToken(argv);
@@ -21,27 +18,31 @@ module.exports = {
 
       let url = argv.url;
       if (url.includes('{subscriptionId}')) {
-        const sid = argv.subscriptionId || cfg.subscriptionId;
-        if (!sid) throw new Error('subscriptionId missing (env/file/flag).');
+        const sid = cfg.subscriptionId || argv.subscriptionId;
+        if (!sid) throw new Error('subscriptionId missing (env/file/flag)');
         url = url.replace('{subscriptionId}', sid);
       }
 
-      const params = argv.params ? JSON.parse(argv.params) : {};
+      const urlObj = new URL(url);
+      const urlParams = {};
+      for (const [k,v] of urlObj.searchParams.entries()) urlParams[k] = v;
+      urlObj.search = '';
+      url = urlObj.toString();
+
+      const p = argv.params ? JSON.parse(argv.params) : {};
+      const params = Object.assign({}, urlParams, p);
       const body = argv.body ? JSON.parse(argv.body) : undefined;
 
-      const res = await azRequest({
-        method: argv.method.toUpperCase(),
-        url,
-        token,
-        params,
-        body,
-      });
-
+      const res = await azRequest({ method: argv.method, url, token, params, body });
       console.log('HTTP', res.status);
       printOutput(res.data, argv.output);
     } catch (err) {
-      console.error('Call failed:', err.message);
+      if (err && err.response) {
+        console.error('HTTP', err.response.status, JSON.stringify(err.response.data));
+      } else {
+        console.error('Call failed:', err.message);
+      }
       process.exit(1);
     }
-  },
+  }
 };

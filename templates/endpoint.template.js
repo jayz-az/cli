@@ -9,17 +9,14 @@ function resolveRuntime() {
     const bin = process.argv[1];
     if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime'));
   } catch (_) {}
-  // prefer local shim in user endpoints dir
   candidates.push(path.join(__dirname, '_runtime'));
-  // fallback relative (repo install)
   candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime'));
   const tried = [];
-  for (const c of candidates) {
-    try { return require(c); } catch (e) { tried.push(c); }
-  }
+  for (const c of candidates) { try { return require(c); } catch (e) { tried.push(c); } }
   throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));
 }
-const { getAccessToken, mergeConfig, azRequest, printOutput } = resolveRuntime();
+const { getAccessTokenFor, mergeConfig, azRequest, printOutput } = resolveRuntime();
+const SCOPE = '__SCOPE__';
 
 module.exports = {
   command: '__CMD_NAME__',
@@ -33,17 +30,13 @@ module.exports = {
       .option('output', { type: 'string', choices: ['json', 'table'], default: 'json', describe: 'Output format.' });
 
     const requiredParams = __REQUIRED_PARAMS__;
-    requiredParams.forEach((p) => {
-      y2.option(p, { type: 'string', describe: 'Path parameter: ' + p });
-    });
-
+    requiredParams.forEach((p) => { y2.option(p, { type: 'string', describe: 'Path parameter: ' + p }); });
     return y2;
   },
   handler: async (argv) => {
     try {
-      const token = await getAccessToken(argv);
+      const token = await getAccessTokenFor(SCOPE, argv);
       const cfg = mergeConfig(argv);
-
       let url = '__RAW_URL__';
 
       if (url.includes('{subscriptionId}')) {
@@ -61,7 +54,7 @@ module.exports = {
         }
       });
 
-      // Extract any query already present in the raw URL to avoid duplicates (e.g., api-version)
+      // Extract query already present in the URL (e.g., api-version), then merge defaults and user params
       const urlObj = new URL(url);
       const queryFromUrl = {};
       for (const [k, v] of urlObj.searchParams.entries()) queryFromUrl[k] = v;
@@ -70,29 +63,16 @@ module.exports = {
 
       const defaultQuery = __DEFAULT_QUERY__;
       const extra = argv.params ? JSON.parse(argv.params) : {};
-      // Merge order: defaults < query-from-URL < user-extra
       const query = Object.assign({}, defaultQuery, queryFromUrl, extra);
 
       const body = argv.body ? JSON.parse(argv.body) : undefined;
 
       if (argv.dry) {
-        console.log(JSON.stringify({
-          method: '__HTTP_METHOD__',
-          url,
-          query,
-          body,
-        }, null, 2));
+        console.log(JSON.stringify({ method: '__HTTP_METHOD__', url, query, body }, null, 2));
         return;
       }
 
-      const res = await azRequest({
-        method: '__HTTP_METHOD__',
-        url,
-        token,
-        params: query,
-        body,
-      });
-
+      const res = await azRequest({ method: '__HTTP_METHOD__', url, token, params: query, body });
       console.log('HTTP', res.status);
       printOutput(res.data, argv.output);
     } catch (err) {

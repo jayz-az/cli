@@ -1,27 +1,21 @@
 const axios = require('axios');
 
 async function azRequest({ method, url, token, params, body }) {
-  const headers = {
-    Authorization: 'Bearer ' + token,
-    'Content-Type': 'application/json',
-  };
-
   const resp = await axios.request({
     method,
     url,
-    headers,
     params,
     data: body,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
     validateStatus: () => true,
   });
-
-  return {
-    status: resp.status,
-    headers: resp.headers,
-    data: resp.data,
-  };
+  if (resp.status >= 200 && resp.status < 300) return resp;
+  const err = new Error('HTTP ' + resp.status);
+  err.response = resp;
+  throw err;
 }
 
-module.exports = {
-  azRequest,
-};
+module.exports = { azRequest };

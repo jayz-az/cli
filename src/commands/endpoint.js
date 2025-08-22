@@ -10,12 +10,24 @@ const userEndpointsDir = path.join(require('os').homedir(), '.config', 'jayz', '
 const templatePath = path.join(__dirname, '..', '..', 'templates', 'endpoint.template.js');
 
 function ensureRuntimeShim(dir) {
-  const shim = `module.exports = (function(){\n  const path = require('path');\n  const candidates = [];\n  if (process.env.JAYZ_CLI_DIR) {\n    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'src', 'runtime'));\n    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));\n  }\n  try { const bin = process.argv[1]; if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime')); } catch (_) {}\n  const tried = [];\n  for (const c of candidates) { try { return require(c); } catch (e) { tried.push(c); } }\n  throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));\n})();`;
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const shimPath = path.join(dir, '_runtime.js');
-  if (!fs.existsSync(shimPath)) fs.writeFileSync(shimPath, shim, 'utf8');
+  if (fs.existsSync(shimPath)) return;
+  const shim = `module.exports = (function(){
+  const path = require('path');
+  const candidates = [];
+  if (process.env.JAYZ_CLI_DIR) {
+    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'src', 'runtime'));
+    candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));
+  }
+  try { const bin = process.argv[1]; if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime')); } catch (_) {}
+  candidates.push(path.join(__dirname, '_runtime')); // self
+  candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime')); // repo fallback
+  const tried = [];
+  for (const c of candidates) { try { return require(c); } catch (e) { tried.push(c); } }
+  throw new Error('jayz runtime not found. Tried: ' + tried.join(', '));
+})();`;
+  fs.writeFileSync(shimPath, shim, 'utf8');
 }
-
 
 function collectEndpoints() {
   const dirs = [repoEndpointsDir, userEndpointsDir];
@@ -80,15 +92,31 @@ async function fetchHtml(url) {
   return resp.data;
 }
 
-function scrapeHttpRequest(html) {
+function scrapeHttpRequest(html, learnUrl) {
   const $ = cheerio.load(html);
   let method = null;
   let url = null;
   $('code, pre code').each((_, el) => {
     const t = $(el).text().trim();
-    if (/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+https:\/\/management\.azure\.com/i.test(t)) {
-      const m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(https:\/\/management\.azure\.com[^\s]*)/i);
-      if (m) { method = m[1]; url = m[2]; return false; }
+    // ARM absolute
+    let m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(https:\/\/management\.azure\.com[^\s]*)/i);
+    if (m) { method = m[1]; url = m[2]; return false; }
+    // Graph absolute
+    m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(https:\/\/graph\.microsoft\.com[^\s]*)/i);
+    if (m) { method = m[1]; url = m[2]; return false; }
+    // Graph relative
+    m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(\/[^\s]*)$/i);
+    if (m && /learn\.microsoft\.com\/.*\/graph\//i.test(learnUrl || '')) {
+      method = m[1];
+      let base = 'https://graph.microsoft.com/v1.0';
+      try {
+        const q = (learnUrl.split('?')[1] || '');
+        const params = new URLSearchParams(q);
+        const view = params.get('view') || '';
+        if (/graph-rest-beta/i.test(view)) base = 'https://graph.microsoft.com/beta';
+      } catch (_) {}
+      url = base + m[2];
+      return false;
     }
     return true;
   });
@@ -105,11 +133,16 @@ function synthesizeName(learnUrl, meta) {
   try {
     const u = new URL(learnUrl);
     const parts = u.pathname.split('/').filter(Boolean);
-    const idx = parts.findIndex((p) => p === 'rest') + 2;
-    const service = parts[idx] || 'service';
-    const resource = (parts[idx + 1] || 'resource').replace(/-/g, '_');
-    const op = (parts[idx + 2] || 'operation').replace(/-/g, '_');
-    return [service, resource, op].join('_').replace(/[^a-z0-9_]/gi, '').toLowerCase();
+    if (parts.includes('graph')) {
+      const slug = parts[parts.length - 1] || 'endpoint';
+      return ('graph_' + slug.replace(/-/g, '_')).toLowerCase();
+    } else {
+      const idx = parts.findIndex((p) => p === 'rest') + 2;
+      const service = parts[idx] || 'service';
+      const resource = (parts[idx + 1] || 'resource').replace(/-/g, '_');
+      const op = (parts[idx + 2] || 'operation').replace(/-/g, '_');
+      return [service, resource, op].join('_').replace(/[^a-z0-9_]/gi, '').toLowerCase();
+    }
   } catch (_) {
     return meta.method.toLowerCase() + '_endpoint';
   }
@@ -125,7 +158,7 @@ function extractPathParams(rawUrl) {
 
 module.exports = {
   command: 'endpoint',
-  desc: 'Endpoint utilities (list/add/update/remove).',
+  desc: 'Endpoint utilities (list/add/update/remove/repair).',
   builder: (y) => {
     return y
       .command({
@@ -140,24 +173,18 @@ module.exports = {
             const ok = all.find(m => m.command === argv.name);
             if (!ok) {
               console.error('Unknown endpoint:', argv.name);
-              console.log('Known endpoints:');
-              all.forEach((m) => console.log(' -', m.command));
+              console.log('Known endpoints:'); all.forEach((m) => console.log(' -', m.command));
               process.exit(1);
             }
             spawnHelpFor(argv.name);
             return;
           }
           let list = filterEndpoints(all, argv.grep);
-          if (list.length === 0) {
-            if (process.stdout.isTTY && !argv.grep) {
-              const q = await promptInput('No matches. Enter a search term to filter (or Enter to show all)', '');
-              list = filterEndpoints(all, q);
-            }
+          if (list.length === 0 && process.stdout.isTTY && !argv.grep) {
+            const q = await promptInput('No matches. Enter a search term to filter (or Enter to show all)', '');
+            list = filterEndpoints(all, q);
           }
-          if (!process.stdout.isTTY) {
-            list.forEach((m) => console.log(m.command));
-            return;
-          }
+          if (!process.stdout.isTTY) { list.forEach((m) => console.log(m.command)); return; }
           if (argv.grep == null) {
             const q = await promptInput('Filter (optional)', '');
             if (q) list = filterEndpoints(list, q);
@@ -174,14 +201,15 @@ module.exports = {
         builder: (y2) => y2.positional('learnUrl', { type: 'string' }),
         handler: async (argv) => {
           const html = await fetchHtml(argv.learnUrl);
-          const meta = scrapeHttpRequest(html);
+          const meta = scrapeHttpRequest(html, argv.learnUrl);
           if (!meta || !meta.method || !meta.url) throw new Error('Could not parse HTTP request section from Learn page.');
           const apiVersion = extractApiVersionFromUrl(argv.learnUrl) || '2024-01-01';
           const name = synthesizeName(argv.learnUrl, meta);
           const filename = name + '.js';
           const requiredParams = extractPathParams(meta.url);
+          const isGraph = /graph\.microsoft\.com/.test(meta.url);
           const hasApiVer = /[?&]api-version=/.test(meta.url);
-          const defaultedParams = (!hasApiVer && apiVersion) ? { 'api-version': apiVersion } : {};
+          const defaultedParams = (isGraph || hasApiVer) ? {} : (apiVersion ? { 'api-version': apiVersion } : {});
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
           ensureRuntimeShim(userEndpointsDir);
@@ -192,7 +220,8 @@ module.exports = {
             .replace(/__HTTP_METHOD__/g, meta.method.toUpperCase())
             .replace(/__RAW_URL__/g, meta.url)
             .replace(/__DEFAULT_QUERY__/g, JSON.stringify(defaultedParams, null, 2))
-            .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2));
+            .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2))
+            .replace(/__SCOPE__/g, isGraph ? 'https://graph.microsoft.com/.default' : 'https://management.azure.com/.default');
 
           fs.writeFileSync(outPath, rendered, 'utf8');
           console.log('Generated:', outPath);
@@ -206,14 +235,15 @@ module.exports = {
         builder: (y2) => y2.positional('learnUrl', { type: 'string' }),
         handler: async (argv) => {
           const html = await fetchHtml(argv.learnUrl);
-          const meta = scrapeHttpRequest(html);
+          const meta = scrapeHttpRequest(html, argv.learnUrl);
           if (!meta || !meta.method || !meta.url) throw new Error('Could not parse HTTP request section from Learn page.');
           const apiVersion = extractApiVersionFromUrl(argv.learnUrl) || '2024-01-01';
           const name = synthesizeName(argv.learnUrl, meta);
           const filename = name + '.js';
           const requiredParams = extractPathParams(meta.url);
+          const isGraph = /graph\.microsoft\.com/.test(meta.url);
           const hasApiVer = /[?&]api-version=/.test(meta.url);
-          const defaultedParams = (!hasApiVer && apiVersion) ? { 'api-version': apiVersion } : {};
+          const defaultedParams = (isGraph || hasApiVer) ? {} : (apiVersion ? { 'api-version': apiVersion } : {});
 
           if (!fs.existsSync(userEndpointsDir)) fs.mkdirSync(userEndpointsDir, { recursive: true });
           ensureRuntimeShim(userEndpointsDir);
@@ -224,7 +254,8 @@ module.exports = {
             .replace(/__HTTP_METHOD__/g, meta.method.toUpperCase())
             .replace(/__RAW_URL__/g, meta.url)
             .replace(/__DEFAULT_QUERY__/g, JSON.stringify(defaultedParams, null, 2))
-            .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2));
+            .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2))
+            .replace(/__SCOPE__/g, isGraph ? 'https://graph.microsoft.com/.default' : 'https://management.azure.com/.default');
 
           fs.writeFileSync(outPath, rendered, 'utf8');
           console.log('Updated:', outPath);
@@ -232,34 +263,6 @@ module.exports = {
           console.log('  jayz', name, '--help');
         }
       })
-
-.command({
-  command: 'repair',
-  desc: 'Fix older user endpoints to use the new runtime shim (no Learn URL needed).',
-  builder: (y2) => y2,
-  handler: async () => {
-    if (!fs.existsSync(userEndpointsDir)) { console.log('No user endpoints dir at', userEndpointsDir); return; }
-    const files = fs.readdirSync(userEndpointsDir).filter(f => f.endsWith('.js') && f !== '_runtime.js');
-    if (files.length === 0) { console.log('No user endpoints to repair.'); return; }
-    ensureRuntimeShim(userEndpointsDir);
-    let changed = 0;
-    for (const f of files) {
-      const full = path.join(userEndpointsDir, f);
-      try {
-        let src = fs.readFileSync(full, 'utf8');
-        if (src.includes("process.env.JAYZ_CLI_DIR") || src.includes("__dirname, '..', '..', 'src', 'runtime'")) {
-          src = src.replace(/const\s+RUNTIME\s*=\s*require\([^)]*\);/m, "const RUNTIME = require(path.join(__dirname, '_runtime'));");
-          fs.writeFileSync(full, src, 'utf8');
-          changed++;
-          console.log('Repaired:', f);
-        }
-      } catch (e) {
-        console.log('Skipped (read error):', f, e.message);
-      }
-    }
-    console.log('Repair complete. Files updated:', changed, '/', files.length);
-  }
-})
       .command({
         command: 'remove [name]',
         desc: 'Remove a user-generated endpoint. Supports --grep and interactive picking.',
@@ -268,12 +271,11 @@ module.exports = {
           .option('grep', { alias: 'g', type: 'string', describe: 'Filter endpoints by substring.' })
           .option('yes', { alias: 'y', type: 'boolean', default: false, describe: 'Do not prompt for confirmation.' }),
         handler: async (argv) => {
-          const listAll = collectEndpoints().filter(e => e.dir === userEndpointsDir); // only user endpoints are removable here
+          const listAll = collectEndpoints().filter(e => e.dir === userEndpointsDir);
           if (listAll.length === 0) { console.log('No user endpoints found at', userEndpointsDir); return; }
 
           let targetName = argv.name;
           if (!targetName) {
-            // Build candidate list via grep or optional prompt
             let list = filterEndpoints(listAll, argv.grep);
             if (process.stdout.isTTY && argv.grep == null) {
               const q = await promptInput('Filter (optional)', '');
@@ -281,10 +283,9 @@ module.exports = {
             }
             if (list.length === 0) { console.log('No endpoints matched.'); return; }
             if (!process.stdout.isTTY) {
-              if (list.length === 1) {
-                targetName = list[0].command;
-              } else {
-                console.error('Multiple matches. Use --grep to narrow down or provide a name.');
+              if (list.length === 1) targetName = list[0].command;
+              else {
+                console.error('Multiple matches. Use --grep to narrow or provide a name.');
                 list.forEach((m) => console.error(' -', m.command));
                 process.exit(1);
               }
@@ -296,21 +297,43 @@ module.exports = {
           }
 
           const file = path.join(userEndpointsDir, targetName + '.js');
-          if (!fs.existsSync(file)) {
-            console.error('Not found in user endpoints:', file);
-            process.exit(1);
-          }
+          if (!fs.existsSync(file)) { console.error('Not found in user endpoints:', file); process.exit(1); }
 
           if (!argv.yes && process.stdout.isTTY) {
             const ans = await promptInput(`Delete ${file}? [y/N]`, 'N');
             if (!/^y(es)?$/i.test(ans || '')) { console.log('Cancelled.'); return; }
           }
-
           fs.unlinkSync(file);
           console.log('Removed:', file);
         }
       })
-      .demandCommand(1, 'endpoint requires a subcommand (list|add|update|remove)');
+      .command({
+        command: 'repair',
+        desc: 'Fix older user endpoints to use the new runtime shim (no Learn URL needed).',
+        builder: (y2) => y2,
+        handler: async () => {
+          if (!fs.existsSync(userEndpointsDir)) { console.log('No user endpoints dir at', userEndpointsDir); return; }
+          const files = fs.readdirSync(userEndpointsDir).filter(f => f.endsWith('.js') && f !== '_runtime.js');
+          if (files.length === 0) { console.log('No user endpoints to repair.'); return; }
+          ensureRuntimeShim(userEndpointsDir);
+          let changed = 0;
+          for (const f of files) {
+            const full = path.join(userEndpointsDir, f);
+            try {
+              let src = fs.readFileSync(full, 'utf8');
+              if (!src.includes("require(path.join(__dirname, '_runtime'))")) {
+                // naive replace of previous strategies
+                src = src.replace(/const\s+RUNTIME\s*=\s*require\([^)]*\);/m, "const RUNTIME = require(path.join(__dirname, '_runtime'));");
+                fs.writeFileSync(full, src, 'utf8');
+                changed++;
+                console.log('Repaired:', f);
+              }
+            } catch (e) { console.log('Skipped (read error):', f, e.message); }
+          }
+          console.log('Repair complete. Files updated:', changed, '/', files.length);
+        }
+      })
+      .demandCommand(1, 'endpoint requires a subcommand (list|add|update|remove|repair)');
   },
   handler: () => {}
 };

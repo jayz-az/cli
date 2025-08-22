@@ -3,13 +3,8 @@ const os = require('os');
 const path = require('path');
 
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'jayz');
+if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-
-function ensureConfigDir() {
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  }
-}
 
 function readConfig() {
   try {
@@ -20,15 +15,17 @@ function readConfig() {
   }
 }
 
-function writeConfig(config) {
-  ensureConfigDir();
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + '\n', 'utf8');
+function writeConfig(obj) {
+  const data = Object.assign({}, readConfig(), obj || {});
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
+  try {
+    if (process.platform !== 'win32') fs.chmodSync(CONFIG_FILE, 0o600);
+  } catch (_) {}
 }
 
-function mergeConfig(cliFlags) {
-  const fileCfg = readConfig();
-
-  const envCfg = {
+function mergeConfig(flags) {
+  const file = readConfig();
+  const env = {
     clientId: process.env.JAYZ_CLIENT_ID,
     clientSecret: process.env.JAYZ_CLIENT_SECRET,
     tenantId: process.env.JAYZ_TENANT_ID,
@@ -36,21 +33,15 @@ function mergeConfig(cliFlags) {
     authorityHost: process.env.JAYZ_AUTHORITY_HOST,
   };
 
-  const merged = Object.assign({}, fileCfg, removeUndefined(envCfg), removeUndefined(cliFlags));
-  return merged;
+  const cli = {
+    clientId: flags && (flags.clientId || flags['client-id']),
+    clientSecret: flags && (flags.clientSecret || flags['client-secret']),
+    tenantId: flags && (flags.tenantId || flags['tenant-id']),
+    subscriptionId: flags && (flags.subscriptionId || flags['subscription-id']),
+    authorityHost: flags && (flags.authorityHost || flags['authority-host']),
+  };
+
+  return Object.assign({}, file, env, cli);
 }
 
-function removeUndefined(obj) {
-  const out = {};
-  Object.keys(obj || {}).forEach((k) => {
-    if (obj[k] !== undefined && obj[k] !== '') out[k] = obj[k];
-  });
-  return out;
-}
-
-module.exports = {
-  CONFIG_FILE,
-  readConfig,
-  writeConfig,
-  mergeConfig,
-};
+module.exports = { CONFIG_FILE, readConfig, writeConfig, mergeConfig };

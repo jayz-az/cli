@@ -27,6 +27,4 @@ function registerGeneratedEndpoints(yargs) {
   loadDir(yargs, userEndpointsDir); // user-specific endpoints
 }
 
-module.exports = {
-  registerGeneratedEndpoints,
-};
+module.exports = { registerGeneratedEndpoints };

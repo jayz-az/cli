@@ -1,4 +1,3 @@
-
 const http = require('http');
 const { URLSearchParams } = require('url');
 const crypto = require('crypto');
@@ -47,7 +46,6 @@ async function startLocalServerForCode() {
 
   server.on('request', (req, res) => {
     try {
-      // Always resolve relative to localhost + fixed port
       const url = new URL(req.url, `http://localhost:${REDIRECT_PORT}`);
       if (url.pathname !== '/callback') {
         res.statusCode = 404;
@@ -82,7 +80,6 @@ async function startLocalServerForCode() {
         reject(e);
       }
     });
-    // Bind without hostname to support IPv4/IPv6; redirect uses localhost
     server.listen(REDIRECT_PORT, () => resolve());
   });
 
@@ -91,12 +88,11 @@ async function startLocalServerForCode() {
 
 async function loginWithBrowser(flags) {
   const cfg = mergeConfig(flags);
-  if (!cfg.clientId) throw new Error('Browser login requires --client-id or JAYZ_CLIENT_ID in env or config.json');
-  if (!cfg.tenantId) throw new Error('Browser login requires --tenant-id or JAYZ_TENANT_ID in env or config.json');
+  if (!cfg.clientId) throw new Error('Browser login requires --client-id or JAYZ_CLIENT_ID');
+  if (!cfg.tenantId) throw new Error('Browser login requires --tenant-id or JAYZ_TENANT_ID');
 
   const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
 
-  // Start local server waiting for code
   const waitForCode = startLocalServerForCode();
 
   const pkce = genPkce();
@@ -117,7 +113,6 @@ async function loginWithBrowser(flags) {
 
   const authCode = await waitForCode;
 
-  // exchange code for tokens
   const tokenParams = new URLSearchParams({
     client_id: cfg.clientId,
     scope: `${MANAGEMENT_SCOPE} offline_access`,
@@ -126,9 +121,7 @@ async function loginWithBrowser(flags) {
     redirect_uri: REDIRECT_URI,
     code_verifier: pkce.verifier,
   });
-  if (cfg.clientSecret) {
-    tokenParams.append('client_secret', cfg.clientSecret);
-  }
+  if (cfg.clientSecret) tokenParams.append('client_secret', cfg.clientSecret);
 
   const tokenUrl = `${authority}/oauth2/v2.0/token`;
   const tokenResp = await axios.post(tokenUrl, tokenParams.toString(), {
@@ -138,11 +131,10 @@ async function loginWithBrowser(flags) {
 
   if (tokenResp.status < 200 || tokenResp.status >= 300) {
     const e = tokenResp.data || {};
-if (e.error === 'invalid_client') {
-  throw new Error("Token exchange failed: invalid_client. Your app is configured as a confidential client. Either set JAYZ_CLIENT_SECRET (or --client-secret) and add a Web redirect 'http://localhost:63265/callback' to the app registration, or switch to --mode secret.");
-} else {
-  throw new Error('Token exchange failed: ' + JSON.stringify(tokenResp.data));
-}
+    if (e.error === 'invalid_client') {
+      throw new Error("Token exchange failed: invalid_client. Your app is confidential. Set JAYZ_CLIENT_SECRET (or --client-secret) and add Web redirect 'http://localhost:63265/callback' in the app registration.");
+    }
+    throw new Error('Token exchange failed: ' + JSON.stringify(tokenResp.data));
   }
 
   const body = tokenResp.data;
@@ -150,29 +142,28 @@ if (e.error === 'invalid_client') {
     clientId: cfg.clientId,
     tenantId: cfg.tenantId,
     subscriptionId: cfg.subscriptionId,
-    tokenType: 'browser_oauth',
+    tokenType: cfg.clientSecret ? 'client_secret' : 'browser_oauth',
     accessToken: body.access_token || null,
     refreshToken: body.refresh_token || null,
     expiresOn: body.expires_in ? new Date(Date.now() + body.expires_in * 1000).toISOString() : null,
     authorityHost: cfg.authorityHost,
+    clientSecret: cfg.clientSecret || undefined,
   };
 
   writeConfig(Object.assign(mergeConfig({}), toSave));
   return toSave;
 }
 
-async function refreshWithRefreshToken(cfg) {
-  if (!cfg.refreshToken) throw new Error('Missing refresh token. Please run `jayz login` again.');
+async function refreshWithRefreshToken(cfg, scopeOverride) {
+  if (!cfg.refreshToken) throw new Error('Missing refresh token. Run `jayz login`.');
   const authority = buildAuthority(cfg.tenantId, cfg.authorityHost);
   const tokenParams = new URLSearchParams({
     client_id: cfg.clientId,
-    scope: `${MANAGEMENT_SCOPE} offline_access`,
+    scope: `${scopeOverride || MANAGEMENT_SCOPE} offline_access`,
     grant_type: 'refresh_token',
     refresh_token: cfg.refreshToken,
   });
-  if (cfg.clientSecret) {
-    tokenParams.append('client_secret', cfg.clientSecret);
-  }
+  if (cfg.clientSecret) tokenParams.append('client_secret', cfg.clientSecret);
 
   const tokenUrl = `${authority}/oauth2/v2.0/token`;
   const tokenResp = await axios.post(tokenUrl, tokenParams.toString(), {
@@ -194,31 +185,20 @@ async function refreshWithRefreshToken(cfg) {
   return updated.accessToken;
 }
 
-// Optional alt modes for completeness
 async function loginWithDeviceCode(flags) {
   const msal = require('msal-node');
   const { LogLevel, PublicClientApplication } = msal;
   const cfg = mergeConfig(flags);
 
-  if (!cfg.clientId) {
-    throw new Error('Device code flow requires --client-id or JAYZ_CLIENT_ID');
-  }
-  if (!cfg.tenantId) {
-    throw new Error('Device code flow requires --tenant-id or JAYZ_TENANT_ID');
-  }
+  if (!cfg.clientId || !cfg.tenantId) throw new Error('Device code flow requires clientId and tenantId');
 
   const pca = new PublicClientApplication({
-    auth: {
-      clientId: cfg.clientId,
-      authority: buildAuthority(cfg.tenantId, cfg.authorityHost),
-    },
+    auth: { clientId: cfg.clientId, authority: buildAuthority(cfg.tenantId, cfg.authorityHost) },
     system: { loggerOptions: { logLevel: LogLevel.Warning } },
   });
 
   const result = await pca.acquireTokenByDeviceCode({
-    deviceCodeCallback: (msg) => {
-      console.log(msg.message);
-    },
+    deviceCodeCallback: (msg) => console.log(msg.message),
     scopes: [MANAGEMENT_SCOPE],
   });
 
@@ -241,9 +221,7 @@ async function loginWithClientSecret(flags) {
   const { ConfidentialClientApplication, LogLevel } = msal;
   const cfg = mergeConfig(flags);
   const required = ['clientId', 'clientSecret', 'tenantId'];
-  required.forEach((k) => {
-    if (!cfg[k]) throw new Error('Missing ' + k + ' (env, file, or flag).');
-  });
+  required.forEach((k) => { if (!cfg[k]) throw new Error('Missing ' + k); });
 
   const cca = new ConfidentialClientApplication({
     auth: {
@@ -254,10 +232,7 @@ async function loginWithClientSecret(flags) {
     system: { loggerOptions: { logLevel: LogLevel.Warning } },
   });
 
-  const result = await cca.acquireTokenByClientCredential({
-    scopes: [MANAGEMENT_SCOPE],
-  });
-
+  const result = await cca.acquireTokenByClientCredential({ scopes: [MANAGEMENT_SCOPE] });
   const toSave = {
     clientId: cfg.clientId,
     clientSecret: cfg.clientSecret,
@@ -268,16 +243,13 @@ async function loginWithClientSecret(flags) {
     expiresOn: result?.expiresOn ? new Date(result.expiresOn * 1000).toISOString() : null,
     authorityHost: cfg.authorityHost,
   };
-
   writeConfig(Object.assign(mergeConfig({}), toSave));
   return toSave;
 }
 
 async function getAccessToken(flags) {
   const cfg = mergeConfig(flags);
-  if (!cfg.tenantId || !cfg.clientId) {
-    throw new Error('Not logged in. Run: jayz login');
-  }
+  if (!cfg.tenantId || !cfg.clientId) throw new Error('Not logged in. Run: jayz login');
 
   if (cfg.tokenType === 'client_secret' && cfg.clientSecret) {
     const msal = require('msal-node');
@@ -302,11 +274,29 @@ async function getAccessToken(flags) {
     return res.accessToken;
   }
 
-  if (cfg.refreshToken) {
-    return await refreshWithRefreshToken(cfg);
-  }
+  if (cfg.refreshToken) return await refreshWithRefreshToken(cfg);
 
-  throw new Error('Unsupported token state. Please run `jayz login` again.');
+  throw new Error('Unsupported token state. Run `jayz login`.');
+}
+
+async function getAccessTokenFor(scope, flags) {
+  const cfg = mergeConfig(flags || {});
+  if (!cfg.tenantId || !cfg.clientId) throw new Error('Not logged in. Run: jayz login');
+  if (cfg.tokenType === 'client_secret' && cfg.clientSecret) {
+    const msal = require('msal-node');
+    const { ConfidentialClientApplication } = msal;
+    const cca = new ConfidentialClientApplication({
+      auth: {
+        clientId: cfg.clientId,
+        clientSecret: cfg.clientSecret,
+        authority: buildAuthority(cfg.tenantId, cfg.authorityHost),
+      },
+    });
+    const result = await cca.acquireTokenByClientCredential({ scopes: [scope] });
+    return result.accessToken;
+  }
+  if (cfg.refreshToken) return await refreshWithRefreshToken(cfg, scope);
+  return await getAccessToken(flags);
 }
 
 module.exports = {
@@ -314,4 +304,5 @@ module.exports = {
   loginWithDeviceCode,
   loginWithClientSecret,
   getAccessToken,
+  getAccessTokenFor,
 };

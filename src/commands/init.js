@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -8,9 +7,7 @@ const { loginWithBrowser, loginWithDeviceCode, loginWithClientSecret } = require
 
 function filePermsNote() {
   if (process.platform !== 'win32') {
-    try {
-      fs.chmodSync(CONFIG_FILE, 0o600);
-    } catch (_) {}
+    try { fs.chmodSync(CONFIG_FILE, 0o600); } catch (_) {}
   }
 }
 
@@ -40,12 +37,9 @@ async function interactiveInit(argv) {
       process.exit(1);
     }
 
-    const config = {
-      clientId,
-      tenantId,
-      subscriptionId: subscriptionId || undefined,
-      authorityHost: authorityHost || undefined,
-    };
+    const config = { clientId, tenantId };
+    if (subscriptionId) config.subscriptionId = subscriptionId;
+    if (authorityHost) config.authorityHost = authorityHost;
 
     writeConfig(config);
     filePermsNote();
@@ -73,7 +67,6 @@ async function interactiveInit(argv) {
 }
 
 function nonInteractiveInit(argv) {
-  // Build from existing, then override with provided flags & env
   const existing = readConfig();
   const merged = Object.assign({}, existing);
 
@@ -82,7 +75,6 @@ function nonInteractiveInit(argv) {
   if (argv.subscriptionId) merged.subscriptionId = argv.subscriptionId;
   if (argv.authorityHost) merged.authorityHost = argv.authorityHost;
 
-  // pull from env if still missing
   if (!merged.clientId && process.env.JAYZ_CLIENT_ID) merged.clientId = process.env.JAYZ_CLIENT_ID;
   if (!merged.tenantId && process.env.JAYZ_TENANT_ID) merged.tenantId = process.env.JAYZ_TENANT_ID;
   if (!merged.subscriptionId && process.env.JAYZ_SUBSCRIPTION_ID) merged.subscriptionId = process.env.JAYZ_SUBSCRIPTION_ID;
