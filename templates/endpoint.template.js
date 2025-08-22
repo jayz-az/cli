@@ -54,7 +54,6 @@ module.exports = {
         }
       });
 
-      // Extract query already present in the URL (e.g., api-version), then merge defaults and user params
       const urlObj = new URL(url);
       const queryFromUrl = {};
       for (const [k, v] of urlObj.searchParams.entries()) queryFromUrl[k] = v;
@@ -67,10 +66,7 @@ module.exports = {
 
       const body = argv.body ? JSON.parse(argv.body) : undefined;
 
-      if (argv.dry) {
-        console.log(JSON.stringify({ method: '__HTTP_METHOD__', url, query, body }, null, 2));
-        return;
-      }
+      if (argv.dry) { console.log(JSON.stringify({ method: '__HTTP_METHOD__', url, query, body }, null, 2)); return; }
 
       const res = await azRequest({ method: '__HTTP_METHOD__', url, token, params: query, body });
       console.log('HTTP', res.status);

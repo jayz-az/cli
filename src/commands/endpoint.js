@@ -85,36 +85,26 @@ async function promptSelect(list) {
   return list[n-1];
 }
 
-async function fetchHtml(url) {
-  const resp = await axios.get(url, { responseType: 'text' });
-  return resp.data;
-}
+async function fetchHtml(url) { const resp = await axios.get(url, { responseType: 'text' }); return resp.data; }
 
 function scrapeHttpRequest(html, learnUrl) {
   const $ = cheerio.load(html);
-  let method = null;
-  let url = null;
+  let method = null; let url = null;
   $('code, pre code').each((_, el) => {
     const t = $(el).text().trim();
-    // ARM absolute
     let m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(https:\/\/management\.azure\.com[^\s]*)/i);
     if (m) { method = m[1]; url = m[2]; return false; }
-    // Graph absolute
     m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(https:\/\/graph\.microsoft\.com[^\s]*)/i);
     if (m) { method = m[1]; url = m[2]; return false; }
-    // Graph relative
     m = t.match(/^(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS)\s+(\/[^\s]*)$/i);
     if (m && /learn\.microsoft\.com\/.*\/graph\//i.test(learnUrl || '')) {
       method = m[1];
       let base = 'https://graph.microsoft.com/v1.0';
       try {
-        const q = (learnUrl.split('?')[1] || '');
-        const params = new URLSearchParams(q);
-        const view = params.get('view') || '';
-        if (/graph-rest-beta/i.test(view)) base = 'https://graph.microsoft.com/beta';
+        const q = (learnUrl.split('?')[1] || ''); const params = new URLSearchParams(q);
+        const view = params.get('view') || ''; if (/graph-rest-beta/i.test(view)) base = 'https://graph.microsoft.com/beta';
       } catch (_) {}
-      url = base + m[2];
-      return false;
+      url = base + m[2]; return false;
     }
     return true;
   });
@@ -122,8 +112,7 @@ function scrapeHttpRequest(html, learnUrl) {
 }
 
 function extractApiVersionFromUrl(learnUrl) {
-  const q = learnUrl.split('?')[1] || '';
-  const params = new URLSearchParams(q);
+  const q = learnUrl.split('?')[1] || ''; const params = new URLSearchParams(q);
   return params.get('view')?.split('rest-').pop()?.replace(/-.+$/, '') || null;
 }
 
@@ -141,15 +130,11 @@ function synthesizeName(learnUrl, meta) {
       const op = (parts[idx + 2] || 'operation').replace(/-/g, '_');
       return [service, resource, op].join('_').replace(/[^a-z0-9_]/gi, '').toLowerCase();
     }
-  } catch (_) {
-    return meta.method.toLowerCase() + '_endpoint';
-  }
+  } catch (_) { return meta.method.toLowerCase() + '_endpoint'; }
 }
 
 function extractPathParams(rawUrl) {
-  const set = new Set();
-  const regex = /\{([a-zA-Z0-9_]+)\}/g;
-  let m;
+  const set = new Set(); const regex = /\{([a-zA-Z0-9_]+)\}/g; let m;
   while ((m = regex.exec(rawUrl))) { set.add(m[1]); }
   return Array.from(set);
 }
@@ -174,8 +159,7 @@ module.exports = {
               console.log('Known endpoints:'); all.forEach((m) => console.log(' -', m.command));
               process.exit(1);
             }
-            spawnHelpFor(argv.name);
-            return;
+            spawnHelpFor(argv.name); return;
           }
           let list = filterEndpoints(all, argv.grep);
           if (list.length === 0 && process.stdout.isTTY && !argv.grep) {
@@ -249,7 +233,7 @@ module.exports = {
           const template = fs.readFileSync(templatePath, 'utf8');
           const rendered = template
             .replace(/__CMD_NAME__/g, name)
-            .replace(/__HTTP_METHOD__/g, meta.method.toUpperCase())
+            .replace(/__HTTP_METHOD__*/g, meta.method.toUpperCase())
             .replace(/__RAW_URL__/g, meta.url)
             .replace(/__DEFAULT_QUERY__/g, JSON.stringify(defaultedParams, null, 2))
             .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2))
@@ -271,7 +255,6 @@ module.exports = {
         handler: async (argv) => {
           const listAll = collectEndpoints().filter(e => e.dir === userEndpointsDir);
           if (listAll.length === 0) { console.log('No user endpoints found at', userEndpointsDir); return; }
-
           let targetName = argv.name;
           if (!targetName) {
             let list = filterEndpoints(listAll, argv.grep);
@@ -293,10 +276,8 @@ module.exports = {
               targetName = choice.command;
             }
           }
-
           const file = path.join(userEndpointsDir, targetName + '.js');
           if (!fs.existsSync(file)) { console.error('Not found in user endpoints:', file); process.exit(1); }
-
           if (!argv.yes && process.stdout.isTTY) {
             const ans = await promptInput(`Delete ${file}? [y/N]`, 'N');
             if (!/^y(es)?$/i.test(ans || '')) { console.log('Cancelled.'); return; }

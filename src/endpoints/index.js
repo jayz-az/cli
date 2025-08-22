@@ -7,8 +7,7 @@ const userEndpointsDir = path.join(os.homedir(), '.config', 'jayz', 'endpoints')
 
 function loadDir(yargs, dir) {
   if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir)
-    .filter((f) => f !== 'index.js' && f.endsWith('.js'));
+  const files = fs.readdirSync(dir).filter((f) => f !== 'index.js' && f.endsWith('.js'));
   files.forEach((f) => {
     try {
       const full = path.join(dir, f);
@@ -23,8 +22,8 @@ function loadDir(yargs, dir) {
 }
 
 function registerGeneratedEndpoints(yargs) {
-  loadDir(yargs, repoEndpointsDir); // built-ins (if any)
-  loadDir(yargs, userEndpointsDir); // user-specific endpoints
+  loadDir(yargs, repoEndpointsDir);
+  loadDir(yargs, userEndpointsDir);
 }
 
 module.exports = { registerGeneratedEndpoints };

@@ -49,13 +49,13 @@ export JAYZ_CLIENT_SECRET=...
 ## Endpoints
 ```bash
 # add from Learn (wrap URL in quotes), saved to ~/.config/jayz/endpoints
-./bin/jayz endpoint add "https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/create-deployment?view=rest-appservice-2024-11-01"
+./bin/jayz endpoint add "https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/list?view=rest-appservice-2024-11-01"
 
 # list with search and pick to show help
 ./bin/jayz endpoint list --grep web
 
 # update existing endpoint by re-scraping Learn (Graph supported)
-./bin/jayz endpoint update "https://learn.microsoft.com/en-us/graph/api/application-post-owners?view=graph-rest-1.0"
+./bin/jayz endpoint update "https://learn.microsoft.com/en-us/graph/api/application-list?view=graph-rest-1.0"
 
 # remove (search then select)
 ./bin/jayz endpoint remove
@@ -68,15 +68,3 @@ export JAYZ_CLIENT_SECRET=...
 ## Graph notes
 - Graph endpoints auto-scope tokens to `https://graph.microsoft.com/.default`.
 - Ensure your app has the required Graph permissions and admin consent.
-
-## Config file
-`~/.config/jayz/config.json`
-```json
-{
-  "defaultAccount": "spn-prod",
-  "accounts": {
-    "user-dev": { "clientId": "000...", "tenantId": "111...", "tokenType": "browser_oauth", "refreshToken": "****", "subscriptionId": "222..." },
-    "spn-prod": { "clientId": "000...", "tenantId": "111...", "clientSecret": "****", "tokenType": "client_secret", "subscriptionId": "222..." }
-  }
-}
-```

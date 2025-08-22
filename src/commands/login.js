@@ -64,7 +64,6 @@ module.exports = {
         console.log('Logged in via browser OAuth.');
       }
 
-      // Save as named account and maybe set default
       const suffix = (saved.clientId||'').slice(0,6);
       const prefix = saved.tokenType === 'client_secret' ? 'spn' : 'user';
       const name = argv.account || `${prefix}-${(saved.tenantId||'').slice(0,8)}-${suffix}`;
@@ -80,24 +79,18 @@ module.exports = {
         return;
       }
 
+      let cfg = mergeConfig({});
       if (!argv.pickSubscription) {
-        const current = mergeConfig({}).subscriptionId;
-        console.log('Login complete. Default subscription is', current || '(unset)');
+        console.log('Login complete. Default subscription is', cfg.subscriptionId || '(unset)');
         return;
       }
 
-      let cfg = mergeConfig({});
       if (!cfg.subscriptionId) {
         const token = await getAccessToken({});
         const subs = await fetchSubscriptions(token);
-        if (subs.length === 0) {
-          console.log('Login complete. No subscriptions visible to this account.');
-          return;
-        }
+        if (subs.length === 0) { console.log('Login complete. No subscriptions visible to this account.'); return; }
         let chosen = null;
-        if (process.stdout.isTTY && subs.length > 1) {
-          chosen = await pickSubscriptionInteractively(subs);
-        }
+        if (process.stdout.isTTY && subs.length > 1) chosen = await pickSubscriptionInteractively(subs);
         if (!chosen) {
           chosen = subs[0].subscriptionId;
           if (subs.length > 1) console.log(`No selection made; using first subscription: ${chosen}`);

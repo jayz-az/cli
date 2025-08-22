@@ -27,16 +27,10 @@ function genPkce() {
 function openBrowser(url) {
   const platform = process.platform;
   try {
-    if (platform === 'darwin') {
-      child_process.spawn('open', [url], { stdio: 'ignore', detached: true });
-    } else if (platform === 'win32') {
-      child_process.spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', detached: true });
-    } else {
-      child_process.spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
-    }
-  } catch (e) {
-    console.error('Please open this URL in your browser:', url);
-  }
+    if (platform === 'darwin') child_process.spawn('open', [url], { stdio: 'ignore', detached: true });
+    else if (platform === 'win32') child_process.spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', detached: true });
+    else child_process.spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
+  } catch (e) { console.error('Please open this URL in your browser:', url); }
 }
 
 async function startLocalServerForCode() {
@@ -47,22 +41,16 @@ async function startLocalServerForCode() {
   server.on('request', (req, res) => {
     try {
       const url = new URL(req.url, `http://localhost:${REDIRECT_PORT}`);
-      if (url.pathname !== '/callback') {
-        res.statusCode = 404; res.end('Not found'); return;
-      }
+      if (url.pathname !== '/callback') { res.statusCode = 404; res.end('Not found'); return; }
       const code = url.searchParams.get('code');
       const err = url.searchParams.get('error_description') || url.searchParams.get('error');
       if (err) { res.statusCode = 400; res.end('Login failed. You may close this window.'); rejectCode(new Error(err)); server.close(); return; }
-      res.statusCode = 200; res.end('Login complete. You may close this window.');
-      resolveCode(code); server.close();
+      res.statusCode = 200; res.end('Login complete. You may close this window.'); resolveCode(code); server.close();
     } catch (e) { try { res.statusCode = 500; res.end('Error'); } catch (_) {} rejectCode(e); server.close(); }
   });
 
   await new Promise((resolve, reject) => {
-    server.once('error', (e) => {
-      if (e && e.code === 'EADDRINUSE') reject(new Error(`Port ${REDIRECT_PORT} is in use. Close the app using it and retry.`));
-      else reject(e);
-    });
+    server.once('error', (e) => { if (e && e.code === 'EADDRINUSE') reject(new Error(`Port ${REDIRECT_PORT} is in use.`)); else reject(e); });
     server.listen(REDIRECT_PORT, () => resolve());
   });
 
@@ -113,7 +101,7 @@ async function loginWithBrowser(flags) {
   if (tokenResp.status < 200 || tokenResp.status >= 300) {
     const e = tokenResp.data || {};
     if (e.error === 'invalid_client') {
-      throw new Error("Token exchange failed: invalid_client. Your app is confidential. Set JAYZ_CLIENT_SECRET (or --client-secret) and add Web redirect 'http://localhost:63265/callback' in the app registration.");
+      throw new Error("Token exchange failed: invalid_client. Your app is confidential. Set JAYZ_CLIENT_SECRET and add Web redirect 'http://localhost:63265/callback'.");
     }
     throw new Error('Token exchange failed: ' + JSON.stringify(tokenResp.data));
   }
@@ -167,7 +155,7 @@ async function refreshWithRefreshToken(cfg, scopeOverride) {
 }
 
 async function loginWithDeviceCode(flags) {
-  const msal = require('msal-node');
+  const msal = require('@azure/msal-node');
   const { LogLevel, PublicClientApplication } = msal;
   const cfg = mergeConfig(flags);
   if (!cfg.clientId || !cfg.tenantId) throw new Error('Device code flow requires clientId and tenantId');
@@ -197,7 +185,7 @@ async function loginWithDeviceCode(flags) {
 }
 
 async function loginWithClientSecret(flags) {
-  const msal = require('msal-node');
+  const msal = require('@azure/msal-node');
   const { ConfidentialClientApplication, LogLevel } = msal;
   const cfg = mergeConfig(flags);
   const required = ['clientId', 'clientSecret', 'tenantId'];
@@ -232,7 +220,7 @@ async function getAccessToken(flags) {
   if (!cfg.tenantId || !cfg.clientId) throw new Error('Not logged in. Run: jayz login');
 
   if (cfg.tokenType === 'client_secret' && cfg.clientSecret) {
-    const msal = require('msal-node');
+    const msal = require('@azure/msal-node');
     const { ConfidentialClientApplication } = msal;
     const cca = new ConfidentialClientApplication({
       auth: {
@@ -261,7 +249,7 @@ async function getAccessTokenFor(scope, flags) {
   const cfg = mergeConfig(flags || {});
   if (!cfg.tenantId || !cfg.clientId) throw new Error('Not logged in. Run: jayz login');
   if (cfg.tokenType === 'client_secret' && cfg.clientSecret) {
-    const msal = require('msal-node');
+    const msal = require('@azure/msal-node');
     const { ConfidentialClientApplication } = msal;
     const cca = new ConfidentialClientApplication({
       auth: {
