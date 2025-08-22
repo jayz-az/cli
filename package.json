@@ -6,9 +6,9 @@
   },
   "type": "commonjs",
   "dependencies": {
-    "axios": "^1.7.2",
-    "cheerio": "^1.0.0-rc.12",
-    "@azure/msal-node": "^2.6.3",
-    "yargs": "^17.7.2"
+    "axios": "^1.11.0",
+    "cheerio": "^1.1.2",
+    "@azure/msal-node": "^3.7.2",
+    "yargs": "^18.0.0"
   }
 }
