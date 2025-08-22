@@ -1,14 +1,14 @@
 {
   "name": "jayz",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "bin": {
     "jayz": "bin/jayz"
   },
   "type": "commonjs",
   "dependencies": {
+    "@azure/msal-node": "^3.7.2",
     "axios": "^1.11.0",
     "cheerio": "^1.1.2",
-    "@azure/msal-node": "^3.7.2",
     "yargs": "^18.0.0"
   }
 }

@@ -233,15 +233,8 @@ async function getAccessToken(flags) {
     return result.accessToken;
   }
 
-  if (cfg.refreshToken) {
-    return await refreshWithRefreshToken(cfg);
-  }
-
-  if (cfg.tokenType === 'device_code') {
-    const res = await loginWithDeviceCode(cfg);
-    return res.accessToken;
-  }
-
+  if (cfg.refreshToken) return await refreshWithRefreshToken(cfg);
+  if (cfg.tokenType === 'device_code') { const res = await loginWithDeviceCode(cfg); return res.accessToken; }
   throw new Error('Unsupported token state. Run `jayz login`.');
 }
 

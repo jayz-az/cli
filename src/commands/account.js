@@ -69,7 +69,7 @@ module.exports = {
           console.log(JSON.stringify({ name, ...redacted }, null, 2));
         }
       })
-      .demandCommand(1, 'account requires a subcommand (list|use|remove|show)');
+      .demandCommand(1, 'account requires a subcommand (list|use/remove/show)');
   },
   handler: () => {}
 };

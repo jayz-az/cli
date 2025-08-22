@@ -4,16 +4,17 @@ const { registerGeneratedEndpoints } = require('./endpoints');
 const path = require('path');
 
 function safeLoad(p) {
-  try { return require(p); } catch (e) {
+  try { return require(p); }
+  catch (e) {
     console.error('Failed to load', p, '\n', e.message);
-    console.error('If this came from a partial unzip: re-extract the zip, keeping folder structure.');
+    console.error('Re-extract the zip keeping folder structure, then run `npm install`.');
     process.exit(1);
   }
 }
 
 const cli = yargsLib(hideBin(process.argv));
 
-// Register generated endpoints BEFORE parsing so top-level commands are available
+// Register user endpoints BEFORE parsing so their commands are available
 registerGeneratedEndpoints(cli);
 
 cli

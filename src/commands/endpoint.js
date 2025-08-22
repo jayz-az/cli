@@ -311,7 +311,7 @@ module.exports = {
           console.log('Repair complete. Files updated:', changed, '/', files.length);
         }
       })
-      .demandCommand(1, 'endpoint requires a subcommand (list|add|update|remove|repair)');
+      .demandCommand(1, 'endpoint requires a subcommand (list|add|update/remove/repair)');
   },
   handler: () => {}
 };

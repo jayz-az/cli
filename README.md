@@ -5,32 +5,40 @@ Hackable CLI for Azure ARM & Microsoft Graph. Add endpoints from Microsoft Learn
 - Browser login on `http://localhost:63265/callback` (fixed port)
 - Confidential app support (set `JAYZ_CLIENT_SECRET`)
 - Saves config & **user endpoints** in `~/.config/jayz/`
-- `endpoint list|add|update|remove|repair`
+- `endpoint list|add|update|remove|repair` with search/pick
 - **Accounts:** keep multiple logins and switch between them
 - Smart `--output table` (name/resourceGroup/location/type fallback to id)
 - Graph endpoints supported (v1.0/beta) with correct token scope
+- `init` interactive setup
 
-## Run locally (no global install)
+## Install / Run (local, no global install)
 ```bash
 npm install
 ./bin/jayz --help
 ```
 
-## Login
+## Quick start
+```bash
+# configure (interactive)
+./bin/jayz init
+
+# or non-interactive + login
+./bin/jayz init -y --client-id $JAYZ_CLIENT_ID --tenant-id $JAYZ_TENANT_ID --login
+```
+
+## Login & Accounts
 ```bash
 # user (browser); name it and make default
-export JAYZ_CLIENT_ID=...
+export JAYZ_CLIENT_ID=...   # app registration
 export JAYZ_TENANT_ID=...
-# If your app is confidential, also set a secret and ensure the redirect: http://localhost:63265/callback
+# If confidential app, also set secret and ensure redirect: http://localhost:63265/callback
 export JAYZ_CLIENT_SECRET=...
 ./bin/jayz login --account user-dev
 
 # service principal (client secret)
 ./bin/jayz login --mode secret --client-secret "$JAYZ_CLIENT_SECRET" --account spn-prod
-```
 
-## Accounts
-```bash
+# list/switch/show/remove
 ./bin/jayz account list --set-default
 ./bin/jayz account use spn-prod
 ./bin/jayz account show
@@ -54,7 +62,7 @@ export JAYZ_CLIENT_SECRET=...
 # list with search and pick to show help
 ./bin/jayz endpoint list --grep web
 
-# update existing endpoint by re-scraping Learn (Graph supported)
+# update from Learn (Graph supported, including relative paths on Learn)
 ./bin/jayz endpoint update "https://learn.microsoft.com/en-us/graph/api/application-list?view=graph-rest-1.0"
 
 # remove (search then select)
@@ -65,6 +73,19 @@ export JAYZ_CLIENT_SECRET=...
 ./bin/jayz endpoint repair
 ```
 
-## Graph notes
-- Graph endpoints auto-scope tokens to `https://graph.microsoft.com/.default`.
-- Ensure your app has the required Graph permissions and admin consent.
+## Doctor
+```bash
+./bin/jayz doctor
+```
+
+## Config file
+`~/.config/jayz/config.json`
+```json
+{
+  "defaultAccount": "spn-prod",
+  "accounts": {
+    "user-dev": { "clientId": "000...", "tenantId": "111...", "tokenType": "browser_oauth", "refreshToken": "****", "subscriptionId": "222..." },
+    "spn-prod": { "clientId": "000...", "tenantId": "111...", "clientSecret": "****", "tokenType": "client_secret", "subscriptionId": "222..." }
+  }
+}
+```

@@ -5,10 +5,7 @@ function resolveRuntime() {
     candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'src', 'runtime'));
     candidates.push(path.join(process.env.JAYZ_CLI_DIR, 'runtime'));
   }
-  try {
-    const bin = process.argv[1];
-    if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime'));
-  } catch (_) {}
+  try { const bin = process.argv[1]; if (bin) candidates.push(path.join(path.dirname(bin), '..', 'src', 'runtime')); } catch (_) {}
   candidates.push(path.join(__dirname, '_runtime'));
   candidates.push(path.join(__dirname, '..', '..', 'src', 'runtime'));
   const tried = [];
@@ -28,7 +25,6 @@ module.exports = {
       .option('body', { type: 'string', describe: 'JSON body.' })
       .option('dry', { type: 'boolean', default: false, describe: 'Print request and exit.' })
       .option('output', { type: 'string', choices: ['json', 'table'], default: 'json', describe: 'Output format.' });
-
     const requiredParams = __REQUIRED_PARAMS__;
     requiredParams.forEach((p) => { y2.option(p, { type: 'string', describe: 'Path parameter: ' + p }); });
     return y2;

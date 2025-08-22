@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { getActiveAccountName, getActiveAccount } = require('../config');
@@ -24,7 +25,7 @@ module.exports = {
     const endpointsDir = path.join(os.homedir(), '.config', 'jayz', 'endpoints');
     const runtimeShim = path.join(endpointsDir, '_runtime.js');
     info.endpointsDir = endpointsDir;
-    info.runtimeShimExists = require('fs').existsSync(runtimeShim);
+    info.runtimeShimExists = fs.existsSync(runtimeShim);
 
     info.activeAccount = getActiveAccountName();
     info.activeProfile = getActiveAccount();

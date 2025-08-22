@@ -10,11 +10,8 @@ function loadDir(yargs, dir) {
   const files = fs.readdirSync(dir).filter((f) => f !== 'index.js' && f.endsWith('.js'));
   files.forEach((f) => {
     try {
-      const full = path.join(dir, f);
-      const cmd = require(full);
-      if (cmd && cmd.command && cmd.handler) {
-        yargs.command(cmd);
-      }
+      const cmd = require(path.join(dir, f));
+      if (cmd && cmd.command && cmd.handler) yargs.command(cmd);
     } catch (e) {
       console.error('Failed to load endpoint', f, 'from', dir, e.message);
     }
@@ -22,8 +19,8 @@ function loadDir(yargs, dir) {
 }
 
 function registerGeneratedEndpoints(yargs) {
-  loadDir(yargs, repoEndpointsDir);
-  loadDir(yargs, userEndpointsDir);
+  loadDir(yargs, repoEndpointsDir);  // built-ins (none by default)
+  loadDir(yargs, userEndpointsDir);  // user endpoints
 }
 
 module.exports = { registerGeneratedEndpoints };
