@@ -35,6 +35,16 @@ async function promptSelect(list) {
   return list[n-1];
 }
 
+function filterSubs(subs, grep) {
+  if (!grep) return subs;
+  const g = String(grep).toLowerCase();
+  return subs.filter(s => {
+    const name = (s.displayName || s.name || '').toLowerCase();
+    const id = (s.subscriptionId || '').toLowerCase();
+    return name.includes(g) || id.includes(g);
+  });
+}
+
 module.exports = {
   command: 'subscription',
   desc: 'Manage the active Azure subscription (list/use/show).',
@@ -44,12 +54,14 @@ module.exports = {
         command: 'list',
         desc: 'List subscriptions visible to the active account; optionally pick a default.',
         builder: (y2) => y2
+          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before listing/picking.' })
           .option('set-default', { type: 'boolean', default: false, describe: 'Prompt to select and set the default subscription.' })
           .option('output', { type: 'string', choices: ['json', 'table'], default: 'table' }),
         handler: async (argv) => {
           try {
             const token = await getAccessToken(argv);
-            const subs = await fetchSubscriptions(token);
+            let subs = await fetchSubscriptions(token);
+            subs = filterSubs(subs, argv.grep);
             if (argv.output === 'table') {
               printOutput({ value: subs }, 'table');
             } else {
@@ -67,20 +79,34 @@ module.exports = {
           }
         }
       })
-      .command({
-        command: 'use <subscriptionId>',
-        desc: 'Set the default (active) subscription for the current account.',
-        builder: (y2) => y2.positional('subscriptionId', { type: 'string' }),
-        handler: async (argv) => {
-          try {
-            updateActiveAccount({ subscriptionId: argv.subscriptionId });
-            console.log('Default subscription set to:', argv.subscriptionId);
-          } catch (err) {
-            console.error('subscription use failed:', err.message);
-            process.exit(1);
-          }
-        }
-      })
+.command({
+  command: 'use [subscriptionId]',
+  desc: 'Set the default (active) subscription. If omitted, shows a picker.',
+  builder: (y2) => y2
+    .positional('subscriptionId', { type: 'string' })
+    .option('output', { type: 'string', choices: ['json','table'], default: 'table' }),
+  .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' })
+                handler: async (argv) => {
+    const { mergeConfig } = require('../config');
+    try {
+      let sid = argv.subscriptionId;
+      if (!sid) {
+        const token = await getAccessToken(argv);
+        let subs = await fetchSubscriptions(token);
+                      subs = filterSubs(subs, argv.grep);
+        if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
+        const pick = await promptSelect(subs);
+        if (!pick) { console.log('Cancelled.'); return; }
+        sid = pick.subscriptionId;
+      }
+      updateActiveAccount({ subscriptionId: sid });
+      console.log('Default subscription set to:', sid);
+    } catch (err) {
+      console.error('subscription use failed:', err.message);
+      process.exit(1);
+    }
+  }
+})
       .command({
         command: 'show',
         desc: 'Show the currently configured subscription id (from the active account).',
@@ -90,7 +116,27 @@ module.exports = {
           console.log(JSON.stringify({ subscriptionId: cfg.subscriptionId || null }, null, 2));
         }
       })
-      .demandCommand(1, 'subscription requires a subcommand (list|use|show)');
+      .command({
+  command: 'switch',
+  desc: 'Interactive subscription picker; sets the default subscription.',
+  builder: (y2) => y2.option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
+  handler: async (argv) => {
+    try {
+      const token = await getAccessToken(argv);
+      let subs = await fetchSubscriptions(token);
+                      subs = filterSubs(subs, argv.grep);
+      if (subs.length === 0) { console.log('No subscriptions visible.'); return; }
+      const pick = await promptSelect(subs);
+      if (!pick) { console.log('Cancelled.'); return; }
+      updateActiveAccount({ subscriptionId: pick.subscriptionId });
+      console.log('Default subscription set to:', pick.subscriptionId);
+    } catch (err) {
+      console.error('subscription switch failed:', err.message);
+      process.exit(1);
+    }
+  }
+})
+.demandCommand(1, 'subscription requires a subcommand (list|use|show|switch)');
   },
   handler: () => {}
 };

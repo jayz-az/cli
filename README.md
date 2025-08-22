@@ -89,3 +89,21 @@ export JAYZ_CLIENT_SECRET=...
   }
 }
 ```
+
+
+## Subscriptions
+```bash
+# show subscriptions (name + subscriptionId) in a table
+./bin/jayz subscription list --output table
+
+# pick a subscription interactively (writes to the active account)
+./bin/jayz subscription list --set-default
+# or
+./bin/jayz subscription switch
+
+# set by id directly (non-interactive)
+./bin/jayz subscription use 00000000-0000-0000-0000-000000000000
+
+# omit the id to open a picker
+./bin/jayz subscription use
+```
