@@ -12,6 +12,7 @@ cli
   .usage('$0 <cmd> [args]')
   .command(require('./commands/login'))
   .command(require('./commands/call'))
+  .command(require('./commands/doctor'))
   .command(require('./commands/init'))
   .command(require('./commands/account'))
   .command(require('./commands/endpoint'))  // endpoint list|add|update|remove|repair
