@@ -233,7 +233,7 @@ module.exports = {
           const template = fs.readFileSync(templatePath, 'utf8');
           const rendered = template
             .replace(/__CMD_NAME__/g, name)
-            .replace(/__HTTP_METHOD__*/g, meta.method.toUpperCase())
+            .replace(/__HTTP_METHOD__/g, meta.method.toUpperCase())
             .replace(/__RAW_URL__/g, meta.url)
             .replace(/__DEFAULT_QUERY__/g, JSON.stringify(defaultedParams, null, 2))
             .replace(/__REQUIRED_PARAMS__/g, JSON.stringify(requiredParams, null, 2))

@@ -1,6 +1,15 @@
 const yargsLib = require('yargs');
 const { hideBin } = require('yargs/helpers');
 const { registerGeneratedEndpoints } = require('./endpoints');
+const path = require('path');
+
+function safeLoad(p) {
+  try { return require(p); } catch (e) {
+    console.error('Failed to load', p, '\n', e.message);
+    console.error('If this came from a partial unzip: re-extract the zip, keeping folder structure.');
+    process.exit(1);
+  }
+}
 
 const cli = yargsLib(hideBin(process.argv));
 
@@ -10,12 +19,12 @@ registerGeneratedEndpoints(cli);
 cli
   .scriptName('jayz')
   .usage('$0 <cmd> [args]')
-  .command(require('./commands/login'))
-  .command(require('./commands/call'))
-  .command(require('./commands/init'))
-  .command(require('./commands/account'))
-  .command(require('./commands/endpoint'))
-  .command(require('./commands/doctor'))
+  .command(safeLoad('./commands/login'))
+  .command(safeLoad('./commands/call'))
+  .command(safeLoad('./commands/init'))
+  .command(safeLoad('./commands/account'))
+  .command(safeLoad('./commands/endpoint'))
+  .command(safeLoad('./commands/doctor'))
   .demandCommand(1, 'Please supply a command.')
   .strict()
   .help()
