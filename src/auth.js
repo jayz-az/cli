@@ -175,8 +175,8 @@ async function loginWithDeviceCode(flags) {
     tenantId: cfg.tenantId,
     subscriptionId: cfg.subscriptionId,
     tokenType: 'device_code',
-    accessToken: result.accessToken || null,
-    expiresOn: (result.expiresOn && typeof result.expiresOn.toISOString === 'function' ? result.expiresOn.toISOString() : null),
+    accessToken: result && result.accessToken || null,
+    expiresOn: (result && result.expiresOn && typeof result.expiresOn.toISOString === 'function' ? result.expiresOn.toISOString() : null),
     authorityHost: cfg.authorityHost,
   };
 

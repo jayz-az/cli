@@ -19,8 +19,8 @@ function loadDir(yargs, dir) {
 }
 
 function registerGeneratedEndpoints(yargs) {
-  loadDir(yargs, repoEndpointsDir);  // built-ins (none by default)
-  loadDir(yargs, userEndpointsDir);  // user endpoints
+  loadDir(yargs, repoEndpointsDir);
+  loadDir(yargs, userEndpointsDir);
 }
 
 module.exports = { registerGeneratedEndpoints };

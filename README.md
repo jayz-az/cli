@@ -7,7 +7,8 @@ Hackable CLI for Azure ARM & Microsoft Graph. Add endpoints from Microsoft Learn
 - Saves config & **user endpoints** in `~/.config/jayz/`
 - `endpoint list|add|update|remove|repair` with search/pick
 - **Accounts:** keep multiple logins and switch between them
-- Smart `--output table` (name/resourceGroup/location/type fallback to id)
+- **Subscriptions:** `subscription list|use|show|switch` with grep filter and picker
+- Smart `--output table` (name/resourceGroup/location/type/subscriptionId/state)
 - Graph endpoints supported (v1.0/beta) with correct token scope
 - `init` interactive setup
 
@@ -43,6 +44,19 @@ export JAYZ_CLIENT_SECRET=...
 ./bin/jayz account use spn-prod
 ./bin/jayz account show
 ./bin/jayz account remove user-dev
+```
+
+## Subscriptions
+```bash
+# show subscriptions (name + subscriptionId + state)
+./bin/jayz subscription list --output table
+
+# filter by name/ID and pick
+./bin/jayz subscription list --grep prod --set-default
+./bin/jayz subscription switch --grep dev
+./bin/jayz subscription use             # picker
+./bin/jayz subscription use <sub-id>    # direct
+./bin/jayz subscription show
 ```
 
 ## Generic calls
@@ -88,22 +102,4 @@ export JAYZ_CLIENT_SECRET=...
     "spn-prod": { "clientId": "000...", "tenantId": "111...", "clientSecret": "****", "tokenType": "client_secret", "subscriptionId": "222..." }
   }
 }
-```
-
-
-## Subscriptions
-```bash
-# show subscriptions (name + subscriptionId) in a table
-./bin/jayz subscription list --output table
-
-# pick a subscription interactively (writes to the active account)
-./bin/jayz subscription list --set-default
-# or
-./bin/jayz subscription switch
-
-# set by id directly (non-interactive)
-./bin/jayz subscription use 00000000-0000-0000-0000-000000000000
-
-# omit the id to open a picker
-./bin/jayz subscription use
 ```

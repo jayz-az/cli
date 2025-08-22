@@ -1,4 +1,3 @@
-
 const axios = require('axios');
 const readline = require('readline');
 const { getAccessToken } = require('../auth');
@@ -12,8 +11,7 @@ async function fetchSubscriptions(token) {
     validateStatus: () => true,
   });
   if (resp.status >= 200 && resp.status < 300) {
-    const data = resp.data && resp.data.value ? resp.data.value : [];
-    const items = Array.isArray(data) ? data : [];
+    const items = Array.isArray(resp.data && resp.data.value) ? resp.data.value : [];
     return items.map(i => ({
       subscriptionId: i.subscriptionId || i.subscriptionID || (i.id && i.id.split('/')[2]),
       displayName: i.displayName || i.name,
@@ -27,11 +25,9 @@ async function fetchSubscriptions(token) {
 
 async function promptSelect(list) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  console.log('\\nSubscriptions:');
+  console.log('\nSubscriptions:');
   list.forEach((s, idx) => {
-    const disp = s.displayName || s.name || s.subscriptionId;
-    const state = s.state ? (' - ' + s.state) : '';
-    console.log(`  [${idx+1}] ${disp} (${s.subscriptionId})${state}`);
+    console.log(`  [${idx+1}] ${s.displayName || s.name || s.subscriptionId} (${s.subscriptionId})${s.state ? ' - ' + s.state : ''}`);
   });
   const ans = await new Promise((resolve) => rl.question('Pick one (Enter to cancel): ', (a) => { rl.close(); resolve(a); }));
   const n = parseInt(ans, 10);
@@ -51,16 +47,16 @@ function filterSubs(subs, grep) {
 
 module.exports = {
   command: 'subscription',
-  desc: 'Manage the active Azure subscription (list/use/show).',
+  desc: 'Manage the active Azure subscription (list/use/show/switch).',
   builder: (y) => {
     return y
       .command({
         command: 'list',
         desc: 'List subscriptions visible to the active account; optionally pick a default.',
         builder: (y2) => y2
-          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before listing/picking.' })
           .option('set-default', { type: 'boolean', default: false, describe: 'Prompt to select and set the default subscription.' })
-          .option('output', { type: 'string', choices: ['json', 'table'], default: 'table' }),
+          .option('output', { type: 'string', choices: ['json', 'table'], default: 'table' })
+          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before listing/picking.' }),
         handler: async (argv) => {
           try {
             const token = await getAccessToken(argv);
@@ -111,19 +107,9 @@ module.exports = {
         }
       })
       .command({
-        command: 'show',
-        desc: 'Show the currently configured subscription id (from the active account).',
-        builder: (y2) => y2,
-        handler: async (argv) => {
-          const cfg = mergeConfig(argv);
-          console.log(JSON.stringify({ subscriptionId: cfg.subscriptionId || null }, null, 2));
-        }
-      })
-      .command({
         command: 'switch',
         desc: 'Interactive subscription picker; sets the default subscription.',
-        builder: (y2) => y2
-          .option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
+        builder: (y2) => y2.option('grep', { alias: 'g', type: 'string', describe: 'Filter by name or subscriptionId before picking.' }),
         handler: async (argv) => {
           try {
             const token = await getAccessToken(argv);
@@ -138,6 +124,15 @@ module.exports = {
             console.error('subscription switch failed:', err.message);
             process.exit(1);
           }
+        }
+      })
+      .command({
+        command: 'show',
+        desc: 'Show the currently configured subscription id (from the active account).',
+        builder: (y2) => y2,
+        handler: async (argv) => {
+          const cfg = mergeConfig(argv);
+          console.log(JSON.stringify({ subscriptionId: cfg.subscriptionId || null }, null, 2));
         }
       })
       .demandCommand(1, 'subscription requires a subcommand (list|use|show|switch)');

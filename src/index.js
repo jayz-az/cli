@@ -14,7 +14,6 @@ function safeLoad(p) {
 
 const cli = yargsLib(hideBin(process.argv));
 
-// Register user endpoints BEFORE parsing so their commands are available
 registerGeneratedEndpoints(cli);
 
 cli

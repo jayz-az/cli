@@ -53,7 +53,7 @@ function collectEndpoints() {
 
 function filterEndpoints(list, grep) {
   if (!grep) return list;
-  const g = grep.toLowerCase();
+  const g = String(grep).toLowerCase();
   return list.filter(e =>
     e.command.toLowerCase().includes(g) ||
     (e.desc && e.desc.toLowerCase().includes(g)) ||
@@ -85,7 +85,14 @@ async function promptSelect(list) {
   return list[n-1];
 }
 
-async function fetchHtml(url) { const resp = await axios.get(url, { responseType: 'text' }); return resp.data; }
+async function fetchHtml(url) {
+  const u = String(url || '');
+  if (!/^https?:\/\//i.test(u)) {
+    throw new Error('Invalid URL. Did you mean "https://..."? Received: ' + u);
+  }
+  const resp = await axios.get(u, { responseType: 'text' });
+  return resp.data;
+}
 
 function scrapeHttpRequest(html, learnUrl) {
   const $ = cheerio.load(html);
@@ -112,8 +119,19 @@ function scrapeHttpRequest(html, learnUrl) {
 }
 
 function extractApiVersionFromUrl(learnUrl) {
-  const q = learnUrl.split('?')[1] || ''; const params = new URLSearchParams(q);
-  return params.get('view').split('rest-').pop().replace(/-.+$/, '') || null;
+  try {
+    const q = (String(learnUrl || '').split('?')[1] || '');
+    const params = new URLSearchParams(q);
+    const view = params.get('view');
+    if (!view) return null;
+    const parts = view.split('rest-');
+    if (parts.length < 2) return null;
+    const verPart = parts.pop();
+    if (!verPart) return null;
+    return verPart.replace(/-.+$/, '');
+  } catch (_) {
+    return null;
+  }
 }
 
 function synthesizeName(learnUrl, meta) {

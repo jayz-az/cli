@@ -1,7 +1,7 @@
 const axios = require('axios');
 const readline = require('readline');
 const { loginWithBrowser, loginWithDeviceCode, loginWithClientSecret, getAccessToken } = require('../auth');
-const { mergeConfig, writeConfig, readConfig, saveAccount, setDefaultAccount, getActiveAccountName } = require('../config');
+const { mergeConfig, writeConfig, saveAccount, setDefaultAccount } = require('../config');
 
 async function fetchSubscriptions(token) {
   const resp = await axios.get('https://management.azure.com/subscriptions', {
@@ -10,7 +10,7 @@ async function fetchSubscriptions(token) {
     validateStatus: () => true,
   });
   if (resp.status >= 200 && resp.status < 300) {
-    const items = Array.isArray((resp.data && resp.data.value)) ? resp.data.value : [];
+    const items = Array.isArray(resp.data && resp.data.value) ? resp.data.value : [];
     return items.map(i => ({
       subscriptionId: i.subscriptionId || i.subscriptionID || (i.id && i.id.split('/')[2]),
       displayName: i.displayName || i.name,

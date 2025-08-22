@@ -2,7 +2,7 @@
  * Smart output formatter for jayz
  * - JSON: unchanged (pretty-printed)
  * - Table: prioritizes Name and Resource Group (fallback to id).
- * - Special-case: include subscriptionId (and state) when present.
+ * - Adds subscriptionId and state when present.
  */
 function isArrayLike(x) { return Array.isArray(x); }
 
